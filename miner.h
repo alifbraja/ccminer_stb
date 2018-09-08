@@ -279,11 +279,12 @@ extern int scanhash_blake256(int thr_id, struct work* work, uint32_t max_nonce, 
 extern int scanhash_blake2s(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_bmw(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_c11(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
-extern int scanhash_cryptolight(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
-extern int scanhash_cryptonight(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_cryptolight(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, int variant);
+extern int scanhash_cryptonight(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, int variant);
 extern int scanhash_decred(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_deep(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_equihash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_verus(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_fresh(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_fugue256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -315,6 +316,7 @@ extern int scanhash_skeincoin(int thr_id, struct work* work, uint32_t max_nonce,
 extern int scanhash_skein2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_skunk(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_s3(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_sonoa(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_timetravel(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_tribus(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_bitcore(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -384,6 +386,7 @@ extern void free_skeincoin(int thr_id);
 extern void free_skein2(int thr_id);
 extern void free_skunk(int thr_id);
 extern void free_s3(int thr_id);
+extern void free_sonoa(int thr_id);
 extern void free_timetravel(int thr_id);
 extern void free_tribus(int thr_id);
 extern void free_bitcore(int thr_id);
@@ -575,6 +578,8 @@ extern uint32_t device_plimit[MAX_GPUS];
 extern uint32_t gpus_intensity[MAX_GPUS];
 extern int opt_cudaschedule;
 
+extern int cryptonight_fork;
+
 // cuda.cpp
 int cuda_num_devices();
 void cuda_devicenames();
@@ -669,7 +674,7 @@ struct stratum_job {
 	unsigned char version[4];
 	unsigned char nbits[4];
 	unsigned char ntime[4];
-	unsigned char claim[32]; // lbry
+	unsigned char extra[64]; // like lbry claimtrie
 	bool clean;
 	unsigned char nreward[2];
 	uint32_t height;
@@ -898,8 +903,12 @@ void blake2b_hash(void *output, const void *input);
 void blake2s_hash(void *output, const void *input);
 void bmw_hash(void *state, const void *input);
 void c11hash(void *output, const void *input);
-void cryptolight_hash(void* output, const void* input, int len);
-void cryptonight_hash(void* output, const void* input, size_t len);
+void cryptolight_hash_variant(void* output, const void* input, int len, int variant);
+void cryptolight_hash(void* output, const void* input);
+void cryptonight_hash_variant(void* output, const void* input, size_t len, int variant);
+void cryptonight_hash(void* output, const void* input);
+void monero_hash(void* output, const void* input);
+void stellite_hash(void* output, const void* input);
 void decred_hash(void *state, const void *input);
 void deephash(void *state, const void *input);
 void luffa_hash(void *state, const void *input);

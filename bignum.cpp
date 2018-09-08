@@ -14,7 +14,7 @@
 #endif
 
 #include "miner.h" // hex2bin
-
+/*
 extern "C" double bn_convert_nbits(const uint32_t nBits)
 {
 	uint256 bn = CBigNum().SetCompact(nBits).getuint256();
@@ -30,7 +30,7 @@ extern "C" void bn_nbits_to_uchar(const uint32_t nBits, unsigned char *target)
 	snprintf(buff, 65, "%s\n", bn.ToString().c_str()); buff[64] = '\0';
 	hex2bin(target, buff, 32);
 }
-
+*/
 // unused, but should allow more than 256bits targets
 #if 0
 extern "C" double bn_hash_target_ratio(uint32_t* hash, uint32_t* target)

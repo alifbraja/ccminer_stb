@@ -52,6 +52,7 @@ enum sha_algos {
 	ALGO_SKEIN,
 	ALGO_SKEIN2,
 	ALGO_SKUNK,
+	ALGO_SONOA,
 	ALGO_S3,
 	ALGO_TIMETRAVEL,
 	ALGO_TRIBUS,
@@ -72,6 +73,9 @@ enum sha_algos {
 	ALGO_WHIRLPOOLX,
 	ALGO_WILDKECCAK,
 	ALGO_ZR5,
+	ALGO_MONERO,
+	ALGO_GRAFT,
+	ALGO_STELLITE,
 	ALGO_AUTO,
 	ALGO_COUNT
 };
@@ -91,7 +95,7 @@ static const char *algo_names[] = {
 	"deep",
 	"decred",
 	"dmd-gr",
-	"equihash",
+	"verus",
 	"fresh",
 	"fugue256",
 	"groestl",
@@ -126,6 +130,7 @@ static const char *algo_names[] = {
 	"skein",
 	"skein2",
 	"skunk",
+	"sonoa",
 	"s3",
 	"timetravel",
 	"tribus",
@@ -146,6 +151,9 @@ static const char *algo_names[] = {
 	"whirlpoolx",
 	"wildkeccak",
 	"zr5",
+	"monero",
+	"graft",
+	"stellite",
 	"auto", /* reserved for multi algo */
 	""
 };
@@ -204,6 +212,31 @@ static inline int algo_to_int(char* arg)
 	}
 
 	return i;
+}
+
+static inline int get_cryptonight_algo(int fork)
+{
+	int algo = ALGO_COUNT;
+
+	switch (fork) {
+		case 8:
+			algo = ALGO_GRAFT;
+			break;
+
+		case 7:
+			algo = ALGO_MONERO;
+			break;
+
+		case 3:
+			algo = ALGO_STELLITE;
+			break;
+
+		default:
+			algo = ALGO_CRYPTONIGHT;
+			break;
+	}
+
+	return algo;
 }
 
 #endif
