@@ -80,9 +80,10 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  x16/x16r.cu x16/x16s.cu x16/cuda_x16_echo512.cu x16/cuda_x16_fugue512.cu \
 			  x16/cuda_x16_shabal512.cu x16/cuda_x16_simd512_80.cu \
 			  x16/cuda_x16_echo512_64.cu \
-			  x17/x17.cu x17/hmq17.cu x17/cuda_x17_haval256.cu x17/cuda_x17_sha512.cu \
-			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu x11/cuda_streebog_maxwell.cu \
-			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu
+			  x17/x17.cu x17/hmq17.cu x17/sonoa.cu x17/cuda_x17_haval256.cu x17/cuda_x17_sha512.cu \
+			  phi/phi.cu phi/phi2.cu phi/cuda_phi2.cu phi/cuda_phi2_cubehash512.cu x11/cuda_streebog_maxwell.cu \
+			  x11/c11.cu x11/s3.cu x11/sib.cu x11/veltor.cu x11/cuda_streebog.cu \
+			verus/verus.cu verus/verus.h verus/verus.c verus/verusscan.cpp
 
 # scrypt
 ccminer_SOURCES += scrypt.cpp scrypt-jane.cpp \
@@ -102,7 +103,7 @@ endif
 
 ccminer_LDFLAGS  = $(PTHREAD_FLAGS) @CUDA_LDFLAGS@
 ccminer_LDADD    = @LIBCURL@ @JANSSON_LIBS@ @PTHREAD_LIBS@ @WS2_LIBS@ @CUDA_LIBS@ @OPENMP_CFLAGS@ @LIBS@ $(nvml_libs)
-ccminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES) $(nvml_defs)
+ccminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -sse4.2 -aesni-fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES) $(nvml_defs)
 
 if HAVE_OSX
 ccminer_CPPFLAGS += -I/usr/local/llvm/lib/clang/4.0.0/include
