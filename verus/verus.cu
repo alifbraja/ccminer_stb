@@ -56,7 +56,7 @@ void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *res
  
 };
 __global__ 
-void __launch_bounds__(256, 3)verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce)
+void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce)
 {
 	
 

@@ -4,10 +4,11 @@
  * tpruvot - 2017 (GPL v3)
  */
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <assert.h>
-#include <string.h>
-#include <stdlib.h>
+
 #include <stdexcept>
 #include <vector>
 
@@ -52,14 +53,14 @@ extern "C" void VerusHashHalf(void *result, const void *data, size_t len)
     uint32_t count = 0;
 
     // put our last result or zero at beginning of buffer each time
-    memset(bufPtr, 0, 32);
+   memset(bufPtr, 0, 32);
 
     // digest up to 32 bytes at a time
     for ( ; pos < len; pos += 32)
     {
         if (len - pos >= 32)
         {
-            memcpy(bufPtr + 32, ptr + pos, 32);
+           memcpy(bufPtr + 32, ptr + pos, 32);
         }
         else
         {
@@ -114,8 +115,8 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	throughput = cuda_default_throughput(thr_id, 1U << intensity);
 	if (init[thr_id]) throughput = min(throughput, max_nonce - nonce_buf);
 	memcpy(endiandata, pdata, 140);
-    memcpy(&data_sols[thr_id][0][140], block_41970, 1344);
-    memcpy(full_data, endiandata, 140);
+        memcpy(&data_sols[thr_id][0][140], block_41970, 1344);
+        memcpy(full_data, endiandata, 140);
 	memcpy(sol_data, &data_sols[thr_id][0][140], 1347);
 	if (!init[thr_id])
 	{
