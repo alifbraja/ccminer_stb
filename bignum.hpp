@@ -2,7 +2,6 @@
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-
 #ifndef BITCOIN_BIGNUM_H
 #define BITCOIN_BIGNUM_H
 
@@ -104,13 +103,13 @@ public:
     CBigNum(short n)            { init(); if (n >= 0) setulong(n); else setint64(n); }
     CBigNum(int n)              { init(); if (n >= 0) setulong(n); else setint64(n); }
     CBigNum(long n)             { init(); if (n >= 0) setulong(n); else setint64(n); }
-    CBigNum(int64_t n)            { init(); setint64(n); }
+    CBigNum(int64 n)            { init(); setint64(n); }
     CBigNum(unsigned char n)    { init(); setulong(n); }
     CBigNum(unsigned short n)   { init(); setulong(n); }
     CBigNum(unsigned int n)     { init(); setulong(n); }
     CBigNum(unsigned long n)    { init(); setulong(n); }
-    CBigNum(uint64_t n)           { init(); setuint64(n); }
-    //explicit CBigNum(uint256_t n) { init(); setuint256(n); }
+    CBigNum(uint64 n)           { init(); setuint64(n); }
+    explicit CBigNum(uint256 n) { init(); setuint256(n); }
 
     explicit CBigNum(const std::vector<unsigned char>& vch)
     {
@@ -143,14 +142,14 @@ public:
             return (n > (unsigned long)std::numeric_limits<int>::max() ? std::numeric_limits<int>::min() : -(int)n);
     }
 
-    void setint64(int64_t sn)
+    void setint64(int64 sn)
     {
         unsigned char pch[sizeof(sn) + 6];
         unsigned char* p = pch + 4;
         bool fNegative;
-        uint64_t n;
+        uint64 n;
 
-        if (sn < (int64_t)0)
+        if (sn < (int64)0)
         {
             // Since the minimum signed integer cannot be represented as positive so long as its type is signed, and it's not well-defined what happens if you make it unsigned before negating it, we instead increment the negative integer by 1, convert it, then increment the (now positive) unsigned integer by 1 to compensate
             n = -(sn + 1);
@@ -186,7 +185,7 @@ public:
         BN_mpi2bn(pch, p - pch, self);
     }
 
-    uint64_t getuint64()
+    uint64 getuint64()
     {
         unsigned int nSize = BN_bn2mpi(self, NULL);
         if (nSize < 4)
@@ -195,13 +194,13 @@ public:
         BN_bn2mpi(self, &vch[0]);
         if (vch.size() > 4)
             vch[4] &= 0x7f;
-        uint64_t n = 0;
+        uint64 n = 0;
         for (unsigned int i = 0, j = vch.size()-1; i < sizeof(n) && j >= 4; i++, j--)
             ((unsigned char*)&n)[i] = vch[j];
         return n;
     }
 
-    void setuint64(uint64_t n)
+    void setuint64(uint64 n)
     {
         unsigned char pch[sizeof(n) + 6];
         unsigned char* p = pch + 4;
@@ -228,7 +227,7 @@ public:
         BN_mpi2bn(pch, p - pch, self);
     }
 
-   /* void setuint256(uint256 n)
+    void setuint256(uint256 n)
     {
         unsigned char pch[sizeof(n) + 6];
         unsigned char* p = pch + 4;
@@ -269,7 +268,7 @@ public:
         for (unsigned int i = 0, j = vch.size()-1; i < sizeof(n) && j >= 4; i++, j--)
             ((unsigned char*)&n)[i] = vch[j];
         return n;
-    }*/
+    }
 
 
     void setvch(const std::vector<unsigned char>& vch)

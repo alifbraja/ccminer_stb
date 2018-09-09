@@ -357,12 +357,6 @@
     <ClCompile Include="equi\blake2\blake2bx.cpp">
       <Filter>Source Files\equi</Filter>
     </ClCompile>
-    <ClCompile Include="verus\haraka.c">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
-    <ClCompile Include="verus\verusscan.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="algos.h">
@@ -616,9 +610,6 @@
     </ClInclude>
     <ClInclude Include="x16\cuda_x16.h">
       <Filter>Header Files\CUDA</Filter>
-    </ClInclude>
-    <ClInclude Include="verus\haraka.h">
-      <Filter>Source Files\CUDA</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1032,9 +1023,6 @@
     </CudaCompile>
     <CudaCompile Include="x16\x16s.cu">
       <Filter>Source Files\CUDA\x16</Filter>
-    </CudaCompile>
-    <CudaCompile Include="verus\verus.cu">
-      <Filter>Source Files\CUDA</Filter>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>
