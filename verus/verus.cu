@@ -67,7 +67,7 @@ void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce)
     uint8_t hash_buf[64];
     uint8_t blockhash[64];
     
-    memcpy(hash_buf,blockhash_half,128);
+    memcpy(hash_buf,blockhash_half,64);
     memset(hash_buf + 32, 0x0,32);
     //memcpy(hash_buf + 32, (unsigned char *)&full_data + 1486 - 14, 15);
     ((uint32_t *)&hash_buf)[8] = nounce;
@@ -159,7 +159,7 @@ __device__ __forceinline__ void unpackhi32(unsigned char *t, unsigned char *a, u
 __device__ void haraka512_perm(unsigned char *out, const unsigned char *in) 
 {
     int i, j;
-	__shared__ unsigned char sharedMemory1[256];
+	__align__(4) __shared__ unsigned char sharedMemory1[256];
 	if (threadIdx.x < 256)
 		sharedMemory1[threadIdx.x] = sbox[threadIdx.x];
     unsigned char s[64], tmp[16];
@@ -184,6 +184,7 @@ __device__ void haraka512_perm(unsigned char *out, const unsigned char *in)
         unpacklo32(s + 48, s, s + 32);
         unpackhi32(s, s, s + 32);
         unpackhi32(s + 32, s + 16, tmp);
+if(i<4)
         unpacklo32(s + 16, s + 16, tmp);
     }
 
@@ -194,15 +195,22 @@ __device__ void haraka512_full(unsigned char *out, const unsigned char *in)
 {
     int i;
 
-    unsigned char buf[64];
-    haraka512_perm(buf, in);
-    for (i = 0; i < 64; i++) {
-        buf[i] = buf[i] ^ in[i];
+    //unsigned char out[64];
+    haraka512_perm(out, in);
+
+    for (i = 32; i < 40; i++) {
+        out[i-16] = out[i] ^ in[i];
     }
 
+     for (i = 48; i < 56; i++) {
+        out[i-24] = out[i] ^ in[i];
+    }
+
+
+
     /* Truncated */
-    memcpy_decker(out,      buf + 8, 8);
-    memcpy_decker(out + 8,  buf + 24, 8);
-    memcpy_decker(out + 16, buf + 32, 8);
-    memcpy_decker(out + 24, buf + 48, 8);
+    //memcpy_decker(out,      out + 8, 8);
+    //memcpy_decker(out + 8,  out + 24, 8);
+   // memcpy_decker(out + 16, out + 32, 8);
+    //memcpy_decker(out + 24, out + 48, 8);
 }
