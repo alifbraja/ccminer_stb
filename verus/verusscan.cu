@@ -18,7 +18,7 @@
 #include <miner.h>
 extern "C"
 {
-#include "haraka.h"
+#include "./verus/haraka.h"
 }
 
 // input here is 140 for the header and 1344 for the solution (equi.cpp)
@@ -32,7 +32,6 @@ extern "C"
 static bool init[MAX_GPUS] = { 0 };
 static int valid_sols[MAX_GPUS] = { 0 };
 static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
-static __thread uint32_t throughput = 0;
 extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
 extern void verus_setBlock(void *blockf,const void *pTargetIn);
 extern void verus_init(int thr_id);
@@ -41,7 +40,7 @@ extern void verus_init(int thr_id);
 #define htobe32(x) swab32(x)
 #endif
 
-extern "C" void VerusHashHalf(void *result, const void *data, size_t len)
+extern "C" void VerusHashHalf(uint8_t *result, uint8_t *data, size_t len)
 {
     unsigned char buf[128];
     unsigned char *bufPtr = buf;
@@ -72,7 +71,7 @@ extern "C" void VerusHashHalf(void *result, const void *data, size_t len)
         if (count == 47) break; // exit from cycle before last iteration
 
         //printf("[%02d.1] ", count); for (int z=0; z<64; z++) printf("%02x", bufPtr[z]); printf("\n");
-        haraka512_zero(bufPtr2, bufPtr); // ( out, in)
+		haraka512_port_zero(bufPtr2, bufPtr); // ( out, in)
         bufPtr2 = bufPtr;
         bufPtr += nextOffset;
         //printf("[%02d.2] ", count); for (int z=0; z<64; z++) printf("%02x", bufPtr[z]); printf("\n");
@@ -95,10 +94,13 @@ static bool cb_cancel(int thr_id) {
 extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
 	uint32_t _ALIGN(64) endiandata[35];
+	int i;
+	
+	
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
     int dev_id = device_map[thr_id];
-	
+	uint32_t throughput;
 	struct timeval tv_start, tv_end, diff;
 	double secs, solps;
 	
@@ -108,15 +110,20 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
     unsigned char block_41970[] = {0xfd, 0x40, 0x05}; // solution
 	uint8_t _ALIGN(64) full_data[140+3+1344] = { 0 };
     uint8_t* sol_data = &full_data[140];
-	uint32_t intensity = 27;
+	uint32_t intensity = 25;
 	
-	throughput = cuda_default_throughput(thr_id, 1U << intensity);printf("throughput= %d",throughput);
-
-	if (init[thr_id]) throughput = min(throughput, max_nonce - nonce_buf);
+		
+	throughput = cuda_default_throughput(thr_id, 1U << intensity);
+	if (init[thr_id]) throughput = min(throughput, 0x8000000);
+	
+	
 	memcpy(endiandata, pdata, 140);
-    memcpy(&data_sols[thr_id][0][140], block_41970, 3);
-    memcpy(full_data, endiandata, 140);
-	memcpy(sol_data, &data_sols[thr_id][0][140], 1347);
+	memcpy(full_data, endiandata, 140);  //pdata
+    memcpy(full_data +140, block_41970, 3);
+  
+	
+	if (opt_benchmark)
+		ptarget[7] = 0x000f;
 	if (!init[thr_id])
 	{
 		cudaSetDevice(dev_id);
@@ -127,27 +134,25 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 			CUDA_LOG_ERROR();
 		}
 		cuda_get_arch(thr_id);
+	//	api_set_throughput(thr_id, throughput);
 		gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
 		verus_init(thr_id);
 		init[thr_id] = true;
 	}
 	
-   
-	VerusHashHalf(blockhash_half, full_data, 1487); // full VerusHash without last iteration
+	VerusHashHalf(blockhash_half, full_data, 1487);	
+	memset(blockhash_half + 32, 0x00, 32);
 	
 	gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
 	
 	work->valid_nonces = 0;
-        
-	verus_setBlock(blockhash_half,work->target); //set data to gpu kernel
-        
+	verus_setBlock(blockhash_half, work->target); //set data to gpu kernel
+	
         
 	do {
 		
-            *hashes_done = nonce_buf + throughput;
-			//*hashes_done = mainnonce;
-			//printf("firstnoncef= %08x, maxnonce = %08x,throughput = %08x\n",first_nonce,max_nonce, throughput);
-            verus_hash(thr_id, throughput, nonce_buf , work->nonces);
+            *hashes_done = (uint64_t)nonce_buf + (uint64_t)throughput;
+		     verus_hash(thr_id, throughput, nonce_buf , work->nonces);
 			
 			if (work->nonces[0] != UINT32_MAX )
 		   {
@@ -155,19 +160,14 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 				uint32_t _ALIGN(64) vhash[8];
 				
                 *((uint32_t *)full_data + 368) = work->nonces[0];
-                //*((uint32_t *)full_data + 369) = 0x4b434544; // DECK
-                //*((uint32_t *)full_data + 370) = 0x00005245; // ER
-                        
+                                       
                 memset(blockhash_half + 32, 0x0, 32);
                 memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
-				//printf("blockhash half\n");
-				for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
-				//printf("\n");       
-                haraka512((unsigned char*)vhash, (unsigned char*)blockhash_half);
-				//printf("full hash \n");
-				for (int i = 0; i < 32; i++) printf("",((uint8_t*)(&vhash))[i]);
-				//printf("\n");
-				
+			//	for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
+				//Sleep(2);
+                haraka512_port_zero((unsigned char*)vhash, (unsigned char*)blockhash_half);
+				//for (int i = 0; i < 32; i++) printf("", ((uint8_t*)(&vhash))[i]);
+				//Sleep(2);
 				
 				if (vhash[7] <= Htarg && fulltest(vhash, ptarget))
 					{
@@ -181,13 +181,11 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
                                     
 						work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
                         pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-
-						
-                        goto out; 
+						goto out; 
 					}
 						
 			}
-			if ((uint64_t)throughput + nonce_buf >= max_nonce) {
+			if ((uint64_t)throughput + (uint64_t)nonce_buf >= (uint64_t)UINT32_MAX) {
 				
 				break;
 			}
@@ -201,12 +199,7 @@ out:
 	timeval_subtract(&diff, &tv_end, &tv_start);
 	secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
 	solps = (double)nonce_buf / secs;
-	gpulog(LOG_INFO, thr_id, "%d hashes in %.2f s (%.2f MH/s)", nonce_buf, secs, solps / 1000000);
-
-	// H/s
-	
-	//*hashes_done = first_nonce;
-	pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
+	//gpulog(LOG_INFO, thr_id, "%u K/hashes in %.2f s (%.2f MH/s)", nonce_buf/1000, secs, solps / 1000000);
 
 	return work->valid_nonces;
 }
