@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <assert.h>
-
+#include <string.h>
 #include <stdexcept>
 #include <vector>
 
