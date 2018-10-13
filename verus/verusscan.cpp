@@ -128,6 +128,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	
 
      uint32_t _ALIGN(64) vhash[32];   const uint32_t Htarg = ptarget[7];
+uint32_t _ALIGN(64) vhash2[8];
 	do {
 		
 		*hashes_done = nonce_buf;
@@ -138,16 +139,29 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 
 		haraka512_4x((unsigned char*)vhash, (unsigned char*)blockhash_half);
 			
-			if (vhash[7] <= Htarg || vhash[15] <= Htarg || vhash[23] <= Htarg || vhash[31] <= Htarg )
+		if (vhash[7] <= Htarg || vhash[15] <= Htarg || vhash[23] <= Htarg || vhash[31] <= Htarg )
 		   {		
-				if (vhash[7] <= Htarg)
-                *((uint32_t *)full_data + 368) = nonce_buf;
-				if (vhash[15] <= Htarg)
+				if (vhash[7] <= Htarg) {
+					*((uint32_t *)full_data + 368) = nonce_buf;
+					for (int i = 0; i < 8; i++)
+						vhash2[i] = vhash[i];
+				}
+				if (vhash[15] <= Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf + 1;
-				if (vhash[23] <= Htarg)
+					for (int i = 0; i<8; i++)
+						vhash2[i] = vhash[i+8];
+				}
+				if (vhash[23] <= Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf + 2;
-				if (vhash[31] <= Htarg)
+					for (int i = 0; i<8; i++)
+						vhash2[i] = vhash[i+16];
+				}
+				if (vhash[31] <= Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf + 3;
+					for (int i = 0; i<8; i++)
+						vhash2[i] = vhash[i+24];
+
+				}
                 //memset(blockhash_half + 32, 0x0, 32);
                 memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
 			//	for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
@@ -163,7 +177,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
                         memcpy(work->data, endiandata, 140);
                         int nonce = work->valid_nonces-1;
                         memcpy(work->extra, sol_data, 1347);
-                        bn_store_hash_target_ratio(vhash, work->target, work, nonce);
+                        bn_store_hash_target_ratio(vhash2, work->target, work, nonce);
                                     
 						work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
                         pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
