@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2010 Jeff Garzik
+ * Copyright 2010 Jeff Garzi
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
  *
@@ -905,11 +905,11 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
 		memcpy(&submit_work, work, sizeof(struct work));
-		//if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
+		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
 			if (equi_stratum_submit(pool, &submit_work))
 				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
 			stratum.job.shares_count++;
-		//}
+		}
 		return true;
 	}
 
