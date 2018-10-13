@@ -42,11 +42,11 @@
 
 #include "miner.h"
 #include "algos.h"
-#include "sia/sia-rpc.h"
-#include "crypto/xmr-rpc.h"
+//#include "sia/sia-rpc.h"
+//#include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
 
-#include <cuda_runtime.h>
+//#include <cuda_runtime.h>
 
 #ifdef WIN32
 #include <Mmsystem.h>
@@ -251,7 +251,7 @@ Options:\n\
 			c11/flax    X11 variant\n\
 			decred      Decred Blake256\n\
 			deep        Deepcoin\n\
-			equihash    Zcash Equihash\n\
+			verus       Veruscoin\n\
 			dmd-gr      Diamond-Groestl\n\
 			fresh       Freshcoin (shavite 80)\n\
 			fugue256    Fuguecoin\n\
@@ -604,7 +604,7 @@ void proper_exit(int reason)
 
 	abort_flag = true;
 	usleep(200 * 1000);
-	cuda_shutdown();
+	
 
 	if (reason == EXIT_CODE_OK && app_exit_code != EXIT_CODE_OK) {
 		reason = app_exit_code;
@@ -719,8 +719,7 @@ static bool work_decode(const json_t *val, struct work *work)
 		break;
 	case ALGO_CRYPTOLIGHT:
 	case ALGO_CRYPTONIGHT:
-	case ALGO_WILDKECCAK:
-		return rpc2_job_decode(val, work);
+	
 	default:
 		data_size = 128;
 		adata_sz = data_size / 4;
@@ -901,16 +900,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	bool stale_work = false;
 	int idnonce = work->submit_nonce_id;
 
-	if (pool->type & POOL_STRATUM && stratum.rpc2) {
-		struct work submit_work;
-		memcpy(&submit_work, work, sizeof(struct work));
-		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
-			if (rpc2_stratum_submit(pool, &submit_work))
-				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
-			stratum.job.shares_count++;
-		}
-		return true;
-	}
+
 
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
@@ -1089,9 +1079,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		else if (opt_algo == ALGO_PHI2 && use_roots) {
 			data_size = 144; adata_sz = 36;
 		}
-		else if (opt_algo == ALGO_SIA) {
-			return sia_submit(curl, pool, work);
-		}
+		
 
 		if (opt_algo != ALGO_HEAVY && opt_algo != ALGO_MJOLLNIR) {
 			for (int i = 0; i < adata_sz; i++)
@@ -1267,18 +1255,7 @@ static bool get_upstream_work(CURL *curl, struct work *work)
 
 	gettimeofday(&tv_start, NULL);
 
-	if (opt_algo == ALGO_SIA) {
-		char *sia_header = sia_getheader(curl, pool);
-		if (sia_header) {
-			rc = sia_work_decode(sia_header, work);
-			free(sia_header);
-		}
-		gettimeofday(&tv_end, NULL);
-		if (have_stratum || unlikely(work->pooln != cur_pooln)) {
-			return rc;
-		}
-		return rc;
-	}
+	
 
 	if (opt_debug_threads)
 		applog(LOG_DEBUG, "%s: want_longpoll=%d have_longpoll=%d",
@@ -1444,11 +1421,9 @@ static void *workio_thread(void *userdata)
 			ok = workio_get_work(wc, curl);
 			break;
 		case WC_SUBMIT_WORK:
-			if (opt_led_mode == LED_MODE_SHARES)
-				gpu_led_on(device_map[wc->thr->id]);
+			
 			ok = workio_submit_work(wc, curl);
-			if (opt_led_mode == LED_MODE_SHARES)
-				gpu_led_off(device_map[wc->thr->id]);
+			
 			break;
 		case WC_ABORT:
 		default:		/* should never happen */
@@ -1554,8 +1529,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	uchar merkle_root[64] = { 0 };
 	int i;
 
-	if (sctx->rpc2)
-		return rpc2_stratum_gen_work(sctx, work);
+	
 
 	if (!sctx->job.job_id) {
 		// applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
@@ -1597,7 +1571,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			break;
 		case ALGO_WHIRLPOOL:
 		default:
-			sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
+			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
 	}
 
 	for (i = 0; i < sctx->job.merkle_count; i++) {
@@ -1607,7 +1581,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 			heavycoin_hash(merkle_root, merkle_root, 64);
 		else
 #endif
-			sha256d(merkle_root, merkle_root, 64);
+			
 	}
 	
 	/* Increment extranonce2 */
@@ -1897,7 +1871,7 @@ static void *miner_thread(void *userdata)
 		}
 	}
 
-	gpu_led_off(dev_id);
+
 
 	while (!abort_flag) {
 		struct timeval tv_start, tv_end, diff;
@@ -2112,25 +2086,17 @@ static void *miner_thread(void *userdata)
 			gpulog(LOG_DEBUG, thr_id, "no data");
 			continue;
 		}
-		if (opt_algo == ALGO_WILDKECCAK && !scratchpad_size) {
-			sleep(1);
-			if (!thr_id) pools[cur_pooln].wait_time += 1;
-			continue;
-		}
+		
 
 		/* conditional mining */
 		if (!wanna_mine(thr_id))
 		{
 			// reset default mem offset before idle..
-#if defined(WIN32) && defined(USE_WRAPNVML)
-			if (need_memclockrst) nvapi_toggle_clocks(thr_id, false);
-#else
-			if (need_nvsettings) nvs_reset_clocks(dev_id);
-#endif
+
 			// free gpu resources
 			algo_free_all(thr_id);
 			// clear any free error (algo switch)
-			cuda_clear_lasterror();
+			//cuda_clear_lasterror();
 
 			// conditional pool switch
 			if (num_pools > 1 && conditional_pool_rotate) {
@@ -2153,11 +2119,7 @@ static void *miner_thread(void *userdata)
 			continue;
 		} else {
 			// reapply mem offset if needed
-#if defined(WIN32) && defined(USE_WRAPNVML)
-			if (need_memclockrst) nvapi_toggle_clocks(thr_id, true);
-#else
-			if (need_nvsettings) nvs_set_clocks(dev_id);
-#endif
+
 		}
 
 		pool_on_hold = false;
@@ -2339,8 +2301,6 @@ static void *miner_thread(void *userdata)
 		gpulog(LOG_DEBUG, thr_id, "start=%08x end=%08x range=%08x",
 			start_nonce, max_nonce, (max_nonce-start_nonce));
 
-		if (opt_led_mode == LED_MODE_MINING)
-			gpu_led_on(dev_id);
 
 		if (cgpu && loopcnt > 1) {
 			cgpu->monitor.sampling_flag = true;
@@ -2351,234 +2311,27 @@ static void *miner_thread(void *userdata)
 		gettimeofday(&tv_start, NULL);
 
 		// check (and reset) previous errors
-		cudaError_t err = cudaGetLastError();
-		if (err != cudaSuccess && !opt_quiet)
-			gpulog(LOG_WARNING, thr_id, "%s", cudaGetErrorString(err));
+	//	cudaError_t err = cudaGetLastError();
+		//if (err != cudaSuccess && !opt_quiet)
+		//	gpulog(LOG_WARNING, thr_id, "%s", cudaGetErrorString(err));
 
 		work.valid_nonces = 0;
 
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 
-		case ALGO_ALLIUM:
-			rc = scanhash_allium(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BASTION:
-			rc = scanhash_bastion(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BLAKECOIN:
-			rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done, 8);
-			break;
-		case ALGO_BLAKE:
-			rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done, 14);
-			break;
-		case ALGO_BLAKE2S:
-			rc = scanhash_blake2s(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BMW:
-			rc = scanhash_bmw(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_C11:
-			rc = scanhash_c11(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_CRYPTOLIGHT:
-			rc = scanhash_cryptolight(thr_id, &work, max_nonce, &hashes_done, 1);
-			break;
-		case ALGO_CRYPTONIGHT:
-		{
-			int cn_variant = 0;
-			if (cryptonight_fork > 1 && ((unsigned char*)work.data)[0] >= cryptonight_fork)
-				cn_variant = ((unsigned char*)work.data)[0] - cryptonight_fork + 1;
-			rc = scanhash_cryptonight(thr_id, &work, max_nonce, &hashes_done, cn_variant);
-			break;
-		}
-		case ALGO_DECRED:
-			rc = scanhash_decred(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_DEEP:
-			rc = scanhash_deep(thr_id, &work, max_nonce, &hashes_done);
-			break;
+		
 		case ALGO_EQUIHASH:
 			rc = scanhash_verus(thr_id, &work, max_nonce, &hashes_done);
 			break;
-		case ALGO_FRESH:
-			rc = scanhash_fresh(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_FUGUE256:
-			rc = scanhash_fugue256(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_GROESTL:
-		case ALGO_DMD_GR:
-			rc = scanhash_groestlcoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_MYR_GR:
-			rc = scanhash_myriad(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_HMQ1725:
-			rc = scanhash_hmq17(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_HSR:
-			rc = scanhash_hsr(thr_id, &work, max_nonce, &hashes_done);
-			break;
-#ifdef WITH_HEAVY_ALGO
-		case ALGO_HEAVY:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
-			break;
-		case ALGO_MJOLLNIR:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
-			break;
-#endif
-		case ALGO_KECCAK:
-		case ALGO_KECCAKC:
-			rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_JACKPOT:
-			rc = scanhash_jackpot(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_JHA:
-			rc = scanhash_jha(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_LBRY:
-			rc = scanhash_lbry(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LUFFA:
-			rc = scanhash_luffa(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_QUARK:
-			rc = scanhash_quark(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_QUBIT:
-			rc = scanhash_qubit(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2:
-			rc = scanhash_lyra2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2v2:
-			rc = scanhash_lyra2v2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2Z:
-			rc = scanhash_lyra2Z(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_NEOSCRYPT:
-			rc = scanhash_neoscrypt(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_NIST5:
-			rc = scanhash_nist5(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PENTABLAKE:
-			rc = scanhash_pentablake(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PHI:
-			rc = scanhash_phi(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PHI2:
-			rc = scanhash_phi2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_POLYTIMOS:
-			rc = scanhash_polytimos(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SCRYPT:
-			rc = scanhash_scrypt(thr_id, &work, max_nonce, &hashes_done,
-				NULL, &tv_start, &tv_end);
-			break;
-		case ALGO_SCRYPT_JANE:
-			rc = scanhash_scrypt_jane(thr_id, &work, max_nonce, &hashes_done,
-				NULL, &tv_start, &tv_end);
-			break;
-		case ALGO_SKEIN:
-			rc = scanhash_skeincoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKEIN2:
-			rc = scanhash_skein2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKUNK:
-			rc = scanhash_skunk(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SHA256D:
-			rc = scanhash_sha256d(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SHA256T:
-			rc = scanhash_sha256t(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SIA:
-			rc = scanhash_sia(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SIB:
-			rc = scanhash_sib(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SONOA:
-			rc = scanhash_sonoa(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_S3:
-			rc = scanhash_s3(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_VANILLA:
-			rc = scanhash_vanilla(thr_id, &work, max_nonce, &hashes_done, 8);
-			break;
-		case ALGO_VELTOR:
-			rc = scanhash_veltor(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_WHIRLCOIN:
-		case ALGO_WHIRLPOOL:
-			rc = scanhash_whirl(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		//case ALGO_WHIRLPOOLX:
-		//	rc = scanhash_whirlx(thr_id, &work, max_nonce, &hashes_done);
-		//	break;
-		case ALGO_WILDKECCAK:
-			rc = scanhash_wildkeccak(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_TIMETRAVEL:
-			rc = scanhash_timetravel(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_TRIBUS:
-			rc = scanhash_tribus(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BITCORE:
-			rc = scanhash_bitcore(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X11EVO:
-			rc = scanhash_x11evo(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X11:
-			rc = scanhash_x11(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X12:
-			rc = scanhash_x12(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X13:
-			rc = scanhash_x13(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X14:
-			rc = scanhash_x14(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X15:
-			rc = scanhash_x15(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X16R:
-			rc = scanhash_x16r(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X16S:
-			rc = scanhash_x16s(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X17:
-			rc = scanhash_x17(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_ZR5:
-			rc = scanhash_zr5(thr_id, &work, max_nonce, &hashes_done);
-			break;
+		
 
 		default:
 			/* should never happen */
 			goto out;
 		}
 
-		if (opt_led_mode == LED_MODE_MINING)
-			gpu_led_off(dev_id);
+		
 
 		if (abort_flag)
 			break; // time to leave the mining loop...
@@ -2599,12 +2352,6 @@ static void *miner_thread(void *userdata)
 				work.nonces[1] = nonceptr[2];
 		}
 
-		if (stratum.rpc2 && (rc == -EBUSY || work_restart[thr_id].restart)) {
-			// bbr scratchpad download or stale result
-			sleep(1);
-			if (!thr_id) pools[cur_pooln].wait_time += 1;
-			continue;
-		}
 
 		if (rc > 0 && opt_debug)
 			applog(LOG_NOTICE, CL_CYN "found => %08x" CL_GRN " %08x", work.nonces[0], swab32(work.nonces[0]));
@@ -2663,6 +2410,7 @@ static void *miner_thread(void *userdata)
 		/* output */
 		if (!opt_quiet && loopcnt > 1 && (time(NULL) - tm_rate_log) > opt_maxlograte) {
 			format_hashrate(thr_hashrates[thr_id], s);
+			if(thr_hashrates[thr_id]>0)
 			gpulog(LOG_INFO, thr_id, "%s, %s", device_name[dev_id], s);
 			tm_rate_log = time(NULL);
 		}
@@ -2695,8 +2443,7 @@ static void *miner_thread(void *userdata)
 		if (rc > 0 && !opt_benchmark) {
 			uint32_t curnonce = nonceptr[0]; // current scan position
 
-			if (opt_led_mode == LED_MODE_SHARES)
-				gpu_led_percent(dev_id, 50);
+			
 
 			work.submit_nonce_id = 0;
 			nonceptr[0] = work.nonces[0];
@@ -2731,8 +2478,7 @@ static void *miner_thread(void *userdata)
 	}
 
 out:
-	if (opt_led_mode)
-		gpu_led_off(dev_id);
+	
 	if (opt_debug_threads)
 		applog(LOG_DEBUG, "%s() died", __func__);
 	tq_freeze(mythr->q);
@@ -2814,18 +2560,7 @@ longpoll_retry:
 		if (switchn != pool_switch_count)
 			goto need_reinit;
 
-		if (opt_algo == ALGO_SIA) {
-			char *sia_header = sia_getheader(curl, pool);
-			if (sia_header) {
-				pthread_mutex_lock(&g_work_lock);
-				if (sia_work_decode(sia_header, &g_work)) {
-					g_work_time = time(NULL);
-				}
-				free(sia_header);
-				pthread_mutex_unlock(&g_work_lock);
-			}
-			continue;
-		}
+		
 
 		val = json_rpc_longpoll(curl, lp_url, pool, rpc_req, &err);
 		if (have_stratum || switchn != pool_switch_count) {
@@ -2928,20 +2663,12 @@ static bool stratum_handle_response(char *buf)
 	// store time required to the pool to answer to a submit
 	stratum.answer_msec = (1000 * diff.tv_sec) + (uint32_t) (0.001 * diff.tv_usec);
 
-	if (stratum.rpc2) {
-		const char* reject_reason = err_val ? json_string_value(json_object_get(err_val, "message")) : NULL;
-		// {"id":10,"jsonrpc":"2.0","error":null,"result":{"status":"OK"}}
-		share_result(json_is_null(err_val), stratum.pooln, sharediff, reject_reason);
-		if (reject_reason) {
-			g_work_time = 0;
-			restart_threads();
-		}
-	} else {
+	
 		if (!res_val)
 			goto out;
 		share_result(json_is_true(res_val), stratum.pooln, sharediff,
 			err_val ? json_string_value(json_array_get(err_val, 1)) : NULL);
-	}
+	
 
 	ret = true;
 out:
@@ -3017,10 +2744,7 @@ wait_stratum_url:
 			}
 		}
 
-		if (stratum.rpc2) {
-			rpc2_stratum_thread_stuff(pool);
-		}
-
+		
 		if (switchn != pool_switch_count) goto pool_switched;
 
 		if (stratum.job.job_id &&
@@ -3254,7 +2978,7 @@ void parse_arg(int key, char *arg)
 		break;
 	}
 	case 'k':
-		opt_scratchpad_url = strdup(arg);
+		//jim
 		break;
 	case 'i':
 		d = atof(arg);
@@ -3263,7 +2987,7 @@ void parse_arg(int key, char *arg)
 			show_usage_and_exit(1);
 		{
 			int n = 0;
-			int ngpus = cuda_num_devices();
+			int ngpus = 1;
 			uint32_t last = 0;
 			char * pch = strtok(arg,",");
 			while (pch != NULL) {
@@ -3299,15 +3023,7 @@ void parse_arg(int key, char *arg)
 		break;
 	case 'n': /* --ndevs */
 		// to get gpu vendors...
-		#ifdef USE_WRAPNVML
-		hnvml = nvml_create();
-		#ifdef WIN32
-		nvapi_init();
-		cuda_devicenames(); // req for leds
-		nvapi_init_settings();
-		#endif
-		#endif
-		cuda_print_devices();
+		
 		proper_exit(EXIT_CODE_OK);
 		break;
 	case 'q':
@@ -3579,8 +3295,7 @@ void parse_arg(int key, char *arg)
 		break;
 	case 1080: /* --led */
 		{
-			if (!opt_led_mode)
-				opt_led_mode = LED_MODE_SHARES;
+			
 			char *pch = strtok(arg,",");
 			int n = 0, lastval, val;
 			while (pch != NULL && n < MAX_GPUS) {
@@ -3588,7 +3303,7 @@ void parse_arg(int key, char *arg)
 				char * p = strstr(pch, "0x");
 				val = p ? (int32_t) strtoul(p, NULL, 16) : atoi(pch);
 				if (!val && !strcmp(pch, "mining"))
-					opt_led_mode = LED_MODE_MINING;
+					opt_led_mode = 1;
 				else if (device_led[dev_id] == -1)
 					device_led[dev_id] = lastval = val;
 				pch = strtok(NULL, ",");
@@ -3605,7 +3320,7 @@ void parse_arg(int key, char *arg)
 		have_stratum = false;
 		break;
 	case 1006:
-		print_hash_tests();
+	
 		proper_exit(EXIT_CODE_OK);
 		break;
 	case 1003:
@@ -3703,7 +3418,7 @@ void parse_arg(int key, char *arg)
 	case 'd': // --device
 		{
 			int device_thr[MAX_GPUS] = { 0 };
-			int ngpus = cuda_num_devices();
+			int ngpus = 1;
 			char* pch = strtok(arg,",");
 			opt_n_threads = 0;
 			while (pch != NULL && opt_n_threads < MAX_GPUS) {
@@ -3716,7 +3431,7 @@ void parse_arg(int key, char *arg)
 						proper_exit(EXIT_CODE_CUDA_NODEVICE);
 					}
 				} else {
-					int device = cuda_finddevice(pch);
+					int device = 1;
 					if (device >= 0 && device < ngpus)
 						device_map[opt_n_threads++] = device;
 					else {
@@ -3948,18 +3663,14 @@ int main(int argc, char *argv[])
 	// get opt_quiet early
 	parse_single_opt('q', argc, argv);
 
-	printf("*** ccminer " PACKAGE_VERSION " for nVidia GPUs by tpruvot@github ***\n");
+	printf("*** ccminer " PACKAGE_VERSION " for CPU's by Monkins1010 based on ccminer***\n");
 	if (!opt_quiet) {
 		const char* arch = is_x64() ? "64-bits" : "32-bits";
-#ifdef _MSC_VER
-		printf("    Built with VC++ %d and nVidia CUDA SDK %d.%d %s\n\n", msver(),
-#else
-		printf("    Built with the nVidia CUDA Toolkit %d.%d %s\n\n",
-#endif
-			CUDART_VERSION/1000, (CUDART_VERSION % 1000)/10, arch);
+
+		printf("    Built with Sweat and tears :-)" );
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
-		printf("  Include some kernels from alexis78, djm34, djEzo, tsiv and krnlx.\n\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
+		printf("Verus donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec  (monkins)\n");
 	}
 
 	rpc_user = strdup("");
@@ -3991,7 +3702,7 @@ int main(int argc, char *argv[])
 		num_cpus = 1;
 
 	// number of gpus
-	active_gpus = cuda_num_devices();
+	active_gpus = 1;
 
 	for (i = 0; i < MAX_GPUS; i++) {
 		device_map[i] = i % active_gpus;
@@ -4008,7 +3719,7 @@ int main(int argc, char *argv[])
 		device_led[i] = -1;
 	}
 
-	cuda_devicenames();
+	
 
 	/* parse command line */
 	parse_cmdline(argc, argv);
@@ -4054,16 +3765,7 @@ int main(int argc, char *argv[])
 		opt_extranonce = false; // disable subscribe
 	}
 
-	if (opt_algo == ALGO_CRYPTONIGHT || opt_algo == ALGO_CRYPTOLIGHT) {
-		rpc2_init();
-		if (!opt_quiet) applog(LOG_INFO, "Using JSON-RPC 2.0");
-	}
 
-	if (opt_algo == ALGO_WILDKECCAK) {
-		rpc2_init();
-		if (!opt_quiet) applog(LOG_INFO, "Using JSON-RPC 2.0");
-		GetScratchpad();
-	}
 
 	flags = !opt_benchmark && strncmp(rpc_url, "https:", 6)
 	      ? (CURL_GLOBAL_ALL & ~CURL_GLOBAL_SSL)
@@ -4213,55 +3915,7 @@ int main(int argc, char *argv[])
 		tq_push(thr_info[stratum_thr_id].q, strdup(rpc_url));
 	}
 
-#ifdef __linux__
-	if (need_nvsettings) {
-		if (nvs_init() < 0)
-			need_nvsettings = false;
-	}
-#endif
 
-#ifdef USE_WRAPNVML
-#if defined(__linux__) || defined(_WIN64)
-	/* nvml is currently not the best choice on Windows (only in x64) */
-	hnvml = nvml_create();
-	if (hnvml) {
-		bool gpu_reinit = (opt_cudaschedule >= 0); //false
-		cuda_devicenames(); // refresh gpu vendor name
-		if (!opt_quiet)
-			applog(LOG_INFO, "NVML GPU monitoring enabled.");
-		for (int n=0; n < active_gpus; n++) {
-			if (nvml_set_pstate(hnvml, device_map[n]) == 1)
-				gpu_reinit = true;
-			if (nvml_set_plimit(hnvml, device_map[n]) == 1)
-				gpu_reinit = true;
-			if (!is_windows() && nvml_set_clocks(hnvml, device_map[n]) == 1)
-				gpu_reinit = true;
-			if (gpu_reinit) {
-				cuda_reset_device(n, NULL);
-			}
-		}
-	}
-#endif
-#ifdef WIN32
-	if (nvapi_init() == 0) {
-		if (!opt_quiet)
-			applog(LOG_INFO, "NVAPI GPU monitoring enabled.");
-		if (!hnvml) {
-			cuda_devicenames(); // refresh gpu vendor name
-		}
-		nvapi_init_settings();
-	}
-#endif
-	else if (!hnvml && !opt_quiet)
-		applog(LOG_INFO, "GPU monitoring is not available.");
-
-	// force reinit to set default device flags
-	if (opt_cudaschedule >= 0 && !hnvml) {
-		for (int n=0; n < active_gpus; n++) {
-			cuda_reset_device(n, NULL);
-		}
-	}
-#endif
 
 	if (opt_api_port) {
 		/* api thread */

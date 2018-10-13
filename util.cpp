@@ -36,7 +36,7 @@
 #include "miner.h"
 #include "elist.h"
 
-#include "crypto/xmr-rpc.h"
+//#include "crypto/xmr-rpc.h"
 
 extern pthread_mutex_t stratum_sock_lock;
 extern pthread_mutex_t stratum_work_lock;
@@ -167,7 +167,7 @@ void gpulog(int prio, int thr_id, const char *fmt, ...)
 		return;
 
 	if (gpu_threads > 1)
-		len = snprintf(pfmt, 128, "GPU T%d: %s", thr_id, fmt);
+		len = snprintf(pfmt, 128, "CPU T%d: Verus Hashing", thr_id, fmt);
 	else
 		len = snprintf(pfmt, 128, "GPU #%d: %s", dev_id, fmt);
 	pfmt[sizeof(pfmt)-1]='\0';
@@ -1320,8 +1320,7 @@ bool stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *p
 	json_error_t err;
 	bool ret = false;
 
-	if (sctx->rpc2)
-		return rpc2_stratum_authorize(sctx, user, pass);
+	
 
 	s = (char*)malloc(80 + strlen(user) + strlen(pass));
 	sprintf(s, "{\"id\": 2, \"method\": \"mining.authorize\", \"params\": [\"%s\", \"%s\"]}",
@@ -1676,7 +1675,7 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	char os[8];
 	uint32_t watts = 0, plimit = 0;
 	int dev_id = device_map[thr_id];
-	int cuda_ver = cuda_version();
+	int cuda_ver = 100;
 	struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
 	json_t *val;
 
@@ -1688,28 +1687,14 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	strcpy(os, is_windows() ? "win32" : "linux");
 #endif
 
-	cuda_gpu_info(cgpu);
-#ifdef USE_WRAPNVML
-	cgpu->has_monitoring = true;
-	if (cgpu->monitor.gpu_power)
-		cgpu->gpu_power = cgpu->monitor.gpu_power;
-	else
-		cgpu->gpu_power = gpu_power(cgpu); // mWatts
-	watts = (cgpu->gpu_power >= 1000) ? cgpu->gpu_power / 1000 : 0; // ignore nvapi %
-	plimit = device_plimit[dev_id] > 0 ? device_plimit[dev_id] : 0;
-	gpu_info(cgpu); // vid/pid
-#endif
+
 	get_currentalgo(algo, sizeof(algo));
 
-	card = device_name[dev_id];
+	card = "CPU";
 	cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
 
 	sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
 	sprintf(arch, "%d", (int) cgpu->gpu_arch);
-	if (cuda_arch[dev_id] > 0 && cuda_arch[dev_id] != cgpu->gpu_arch) {
-		// if binary was not compiled for the highest cuda arch, add it
-		snprintf(arch, 8, "%d@%d", (int) cgpu->gpu_arch, cuda_arch[dev_id]);
-	}
 	snprintf(driver, 32, "CUDA %d.%d %s", cuda_ver/1000, (cuda_ver%1000) / 10, driver_version);
 	driver[31] = '\0';
 
@@ -1902,10 +1887,7 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
 		ret = stratum_show_message(sctx, id, params);
 		goto out;
 	}
-	if (sctx->rpc2 && !strcasecmp(method, "job")) { // xmr/bbr
-		ret = rpc2_stratum_job(sctx, id, params);
-		goto out;
-	}
+	
 
 	if (!ret) {
 		// don't fail = disconnect stratum on unknown (and optional?) methods
@@ -2157,211 +2139,3 @@ void do_gpu_tests(void)
 #endif
 }
 
-void print_hash_tests(void)
-{
-	uchar *scratchbuf = NULL;
-	char s[128] = {'\0'};
-	uchar hash[128];
-	uchar buf[192];
-
-	// work space for scratchpad based algos
-	scratchbuf = (uchar*)calloc(128, 1024);
-	memset(buf, 0, sizeof buf);
-
-	// buf[0] = 1; buf[64] = 2; // for endian tests
-
-	printf(CL_WHT "CPU HASH ON EMPTY BUFFER RESULTS:" CL_N "\n");
-
-	allium_hash(&hash[0], &buf[0]);
-	printpfx("allium", hash);
-
-	bastionhash(&hash[0], &buf[0]);
-	printpfx("bastion", hash);
-
-	blake256hash(&hash[0], &buf[0], 8);
-	printpfx("blakecoin", hash);
-
-	blake256hash(&hash[0], &buf[0], 14);
-	printpfx("blake", hash);
-
-	blake2s_hash(&hash[0], &buf[0]);
-	printpfx("blake2s", hash);
-
-	bmw_hash(&hash[0], &buf[0]);
-	printpfx("bmw", hash);
-
-	c11hash(&hash[0], &buf[0]);
-	printpfx("c11", hash);
-
-	cryptolight_hash(&hash[0], &buf[0]);
-	printpfx("cryptolight", hash);
-
-	cryptonight_hash(&hash[0], &buf[0]);
-	printpfx("cryptonight", hash);
-
-	memset(buf, 0, 180);
-	decred_hash(&hash[0], &buf[0]);
-	printpfx("decred", hash);
-
-	deephash(&hash[0], &buf[0]);
-	printpfx("deep", hash);
-
-	fresh_hash(&hash[0], &buf[0]);
-	printpfx("fresh", hash);
-
-	fugue256_hash(&hash[0], &buf[0], 32);
-	printpfx("fugue256", hash);
-
-	groestlhash(&hash[0], &buf[0]);
-	printpfx("groestl", hash);
-
-	heavycoin_hash(&hash[0], &buf[0], 32);
-	printpfx("heavy", hash);
-
-	hmq17hash(&hash[0], &buf[0]);
-	printpfx("hmq1725", hash);
-
-	hsr_hash(&hash[0], &buf[0]);
-        printpfx("hsr", hash);
-
-	jha_hash(&hash[0], &buf[0]);
-	printpfx("jha", hash);
-
-	keccak256_hash(&hash[0], &buf[0]);
-	printpfx("keccak", hash);
-
-	memset(buf, 0, 128);
-	lbry_hash(&hash[0], &buf[0]);
-	printpfx("lbry", hash);
-
-	luffa_hash(&hash[0], &buf[0]);
-	printpfx("luffa", hash);
-
-	lyra2re_hash(&hash[0], &buf[0]);
-	printpfx("lyra2", hash);
-
-	lyra2v2_hash(&hash[0], &buf[0]);
-	printpfx("lyra2v2", hash);
-
-	lyra2Z_hash(&hash[0], &buf[0]);
-	printpfx("lyra2z", hash);
-
-	monero_hash(&hash[0], &buf[0]);
-	printpfx("monero", hash);
-
-	myriadhash(&hash[0], &buf[0]);
-	printpfx("myriad", hash);
-
-	neoscrypt(&hash[0], &buf[0], 80000620);
-	printpfx("neoscrypt", hash);
-
-	nist5hash(&hash[0], &buf[0]);
-	printpfx("nist5", hash);
-
-	pentablakehash(&hash[0], &buf[0]);
-	printpfx("pentablake", hash);
-
-	phi2_hash(&hash[0], &buf[0]);
-	printpfx("phi", hash);
-
-	polytimos_hash(&hash[0], &buf[0]);
-	printpfx("polytimos", hash);
-
-	quarkhash(&hash[0], &buf[0]);
-	printpfx("quark", hash);
-
-	qubithash(&hash[0], &buf[0]);
-	printpfx("qubit", hash);
-
-	scrypthash(&hash[0], &buf[0]);
-	printpfx("scrypt", hash);
-
-	scryptjane_hash(&hash[0], &buf[0]);
-	printpfx("scrypt-jane", hash);
-
-	sha256d_hash(&hash[0], &buf[0]);
-	printpfx("sha256d", hash);
-
-	sha256t_hash(&hash[0], &buf[0]);
-	printpfx("sha256t", hash);
-
-	blake2b_hash(&hash[0], &buf[0]);
-	printpfx("sia", hash);
-
-	sibhash(&hash[0], &buf[0]);
-	printpfx("sib", hash);
-
-	skeincoinhash(&hash[0], &buf[0]);
-	printpfx("skein", hash);
-
-	skein2hash(&hash[0], &buf[0]);
-	printpfx("skein2", hash);
-
-	skunk_hash(&hash[0], &buf[0]);
-	printpfx("skunk", hash);
-
-	stellite_hash(&hash[0], &buf[0]);
-	printpfx("stelitte", hash);
-
-	s3hash(&hash[0], &buf[0]);
-	printpfx("S3", hash);
-
-	timetravel_hash(&hash[0], &buf[0]);
-	printpfx("timetravel", hash);
-
-	bitcore_hash(&hash[0], &buf[0]);
-	printpfx("bitcore", hash);
-
-	blake256hash(&hash[0], &buf[0], 8);
-	printpfx("vanilla", hash);
-
-	tribus_hash(&hash[0], &buf[0]);
-	printpfx("tribus", hash);
-
-	veltorhash(&hash[0], &buf[0]);
-	printpfx("veltor", hash);
-
-	wcoinhash(&hash[0], &buf[0]);
-	printpfx("whirlpool", hash);
-
-	//whirlxHash(&hash[0], &buf[0]);
-	//printpfx("whirlpoolx", hash);
-
-	x11evo_hash(&hash[0], &buf[0]);
-	printpfx("x11evo", hash);
-
-	x11hash(&hash[0], &buf[0]);
-	printpfx("x11", hash);
-
-	x12hash(&hash[0], &buf[0]);
-	printpfx("x12", hash);
-
-	x13hash(&hash[0], &buf[0]);
-	printpfx("x13", hash);
-
-	x14hash(&hash[0], &buf[0]);
-	printpfx("x14", hash);
-
-	x15hash(&hash[0], &buf[0]);
-	printpfx("x15", hash);
-
-	x16r_hash(&hash[0], &buf[0]);
-	printpfx("x16r", hash);
-
-	x16s_hash(&hash[0], &buf[0]);
-	printpfx("x16s", hash);
-
-	x17hash(&hash[0], &buf[0]);
-	printpfx("x17", hash);
-
-	//memcpy(buf, zrtest, 80);
-	zr5hash(&hash[0], &buf[0]);
-	//zr5hash_pok(&hash[0], (uint32_t*) &buf[0]);
-	printpfx("ZR5", hash);
-
-	printf("\n");
-
-	do_gpu_tests();
-
-	free(scratchbuf);
-}
