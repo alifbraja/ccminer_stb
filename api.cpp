@@ -12,7 +12,7 @@
 
 #ifdef WIN32
 # define  _WINSOCK_DEPRECATED_NO_WARNINGS
-# include <winsock2.h>
+//# include <winsock2.h>
 #endif
 
 #include <stdio.h>
@@ -124,7 +124,7 @@ static void gpustatus(int thr_id)
 		char buf[512]; *buf = '\0';
 		char* card;
 
-		cuda_gpu_info(cgpu);
+		
 		cgpu->gpu_plimit = device_plimit[cgpu->gpu_id];
 
 #ifdef USE_WRAPNVML
@@ -272,8 +272,8 @@ static void gpuhwinfos(int gpu_id)
 	if (cgpu == NULL)
 		return;
 
-	cuda_gpu_info(cgpu);
-	cgpu->gpu_plimit = device_plimit[cgpu->gpu_id];
+	
+	cgpu->gpu_plimit = 200;
 
 #ifdef USE_WRAPNVML
 	cgpu->has_monitoring = true;
@@ -355,8 +355,7 @@ static void syshwinfos()
 static char *gethwinfos(char *params)
 {
 	*buffer = '\0';
-	for (int i = 0; i < cuda_num_devices(); i++)
-		gpuhwinfos(i);
+	
 	syshwinfos();
 	return buffer;
 }
@@ -597,7 +596,7 @@ static size_t base64_encode(const uchar *indata, size_t insize, char *outptr, si
 	return len;
 }
 
-#include "compat/curl-for-windows/openssl/openssl/crypto/sha/sha.h"
+#include "openssl/sha.h"
 
 /* websocket handshake (tested in Chrome) */
 static int websocket_handshake(SOCKETTYPE c, char *result, char *clientkey)
@@ -1344,7 +1343,7 @@ void api_set_throughput(int thr_id, uint32_t throughput)
 {
 	if (thr_id < MAX_GPUS && thr_info) {
 		struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
-		cgpu->intensity = throughput2intensity(throughput);
+		cgpu->intensity = 100;
 		if (cgpu->throughput != throughput) cgpu->throughput = throughput;
 	}
 	// to display in bench results
