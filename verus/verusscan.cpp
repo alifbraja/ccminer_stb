@@ -29,7 +29,7 @@ extern "C"
 
 static bool init[MAX_GPUS] = { 0 };
 static int valid_sols[MAX_GPUS] = { 0 };
-static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
+//static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
 extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
 
 
@@ -88,10 +88,10 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint32_t *ptarget = work->target;
     int dev_id = device_map[thr_id];
 	uint32_t throughput = 0x4;
-	struct timeval tv_start, tv_end, diff;
-	double secs, solps;
+	//struct timeval tv_start, tv_end, diff;
+	//double secs, solps;
 	
-	_ALIGN(64) uint8_t blockhash_half[256];
+	uint8_t blockhash_half[256];
 	uint32_t nonce_buf = 0;
 	
     unsigned char block_41970[] = {0xfd, 0x40, 0x05}; // solution
@@ -109,7 +109,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	
 	VerusHashHalf(blockhash_half, full_data, 1487);	
 		
-	gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
+	//gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
 	
 	work->valid_nonces = 0;
 	//verus_setBlock(blockhash_half, work->target, thr_id); //set data to gpu kernel
@@ -127,7 +127,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	//printf("\n");
 	
 
-     uint32_t _ALIGN(64) vhash[32];   const uint32_t Htarg = ptarget[7];
+     uint32_t vhash[32];   const uint32_t Htarg = ptarget[7];
 uint32_t _ALIGN(64) vhash2[8];
 	do {
 		
@@ -195,10 +195,10 @@ uint32_t _ALIGN(64) vhash2[8];
         
         
 out:
-	gettimeofday(&tv_end, NULL);
-	timeval_subtract(&diff, &tv_end, &tv_start);
-	secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
-	solps = (double)nonce_buf / secs;
+	//gettimeofday(&tv_end, NULL);
+	//timeval_subtract(&diff, &tv_end, &tv_start);
+	//secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
+	//solps = (double)nonce_buf / secs;
 	//gpulog(LOG_INFO, thr_id, "%u K/hashes in %.2f s (%.2f MH/s)", nonce_buf/1000, secs, solps / 1000000);
 
 	return work->valid_nonces;
