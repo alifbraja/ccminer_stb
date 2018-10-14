@@ -2038,7 +2038,8 @@ static void *miner_thread(void *userdata)
 
 		} else if (opt_algo == ALGO_EQUIHASH) {
 			nonceptr[1]++;
-			nonceptr[1] |= thr_id << 24;
+			//nonceptr[1] |= thr_id << 24;
+			nonceptr[2] |= thr_id;
 			//applog_hex(&work.data[27], 32);
 		} else if (opt_algo == ALGO_WILDKECCAK) {
 			//nonceptr[1] += 1;
