@@ -27,10 +27,10 @@ extern "C"
 #define EQNONCE_OFFSET 30 /* 27:34 */
 #define NONCE_OFT EQNONCE_OFFSET
 
-static bool init[MAX_GPUS] = { 0 };
-static int valid_sols[MAX_GPUS] = { 0 };
+//static bool init[MAX_GPUS] = { 0 };
+//static int valid_sols[MAX_GPUS] = { 0 };
 //static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
-extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
+//extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
 
 
 #ifndef htobe32
@@ -83,23 +83,25 @@ extern "C" void VerusHashHalf(uint8_t *result, uint8_t *data, size_t len)
 
 extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
-	uint32_t _ALIGN(64) endiandata[35];
+	uint32_t endiandata[35];
 	uint32_t *pdata = work->data;
-	uint32_t *ptarget = work->target;
-    int dev_id = device_map[thr_id];
+	uint64_t ptarget[4];
+	uint32_t ptarget2[8];
+	for (int i = 0; i<8; i++)
+		ptarget2[i] = work->target[i];
+	for(int i=0; i<32;i++)
+	((uint8_t*)&ptarget)[i] = ((uint8_t*)&ptarget2)[i];
+   // int dev_id = device_map[thr_id];
 	uint32_t throughput = 0x4;
 	//struct timeval tv_start, tv_end, diff;
-	//double secs, solps;
+//	double secs, solps;
 	
 	uint8_t blockhash_half[256];
 	uint32_t nonce_buf = 0;
 	
     unsigned char block_41970[] = {0xfd, 0x40, 0x05}; // solution
-	uint8_t _ALIGN(64) full_data[140+3+1344] = { 0 };
+	uint8_t  full_data[140+3+1344] = { 0 };
     uint8_t* sol_data = &full_data[140];
-	uint32_t intensity = 25;
-	
-	
 	
 	
 	memcpy(endiandata, pdata, 140);
@@ -108,27 +110,24 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
   
 	
 	VerusHashHalf(blockhash_half, full_data, 1487);	
-		
-	//gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
+	
 	
 	work->valid_nonces = 0;
-	//verus_setBlock(blockhash_half, work->target, thr_id); //set data to gpu kernel
+	
 	memset(blockhash_half + 32, 0x00, 32);
 	memset(blockhash_half + 96, 0x00, 32);
 	memset(blockhash_half + 160, 0x00, 32);
 	memset(blockhash_half + 224, 0x00, 32);
 
 
-	//memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
 	memcpy(blockhash_half + 64, blockhash_half, 64);
 	memcpy(blockhash_half + 128, blockhash_half, 64);
 	memcpy(blockhash_half + 192, blockhash_half, 64);
-	//for (int i = 0; i < 256; i++) printf("%02x", ((uint8_t*)(&blockhash_half))[i]);
-	//printf("\n");
+	
 	
 
-     uint32_t vhash[32];   const uint32_t Htarg = ptarget[7];
-uint32_t _ALIGN(64) vhash2[8];
+     uint64_t vhash[16];   const uint64_t Htarg = ptarget[3];
+	 uint64_t _ALIGN(64) vhash2[4];
 	do {
 		
 		*hashes_done = nonce_buf;
@@ -139,49 +138,42 @@ uint32_t _ALIGN(64) vhash2[8];
 
 		haraka512_4x((unsigned char*)vhash, (unsigned char*)blockhash_half);
 			
-		if (vhash[7] <= Htarg || vhash[15] <= Htarg || vhash[23] <= Htarg || vhash[31] <= Htarg )
+			if (vhash[3] < Htarg || vhash[7] < Htarg || vhash[11] < Htarg || vhash[15] < Htarg )
 		   {		
-				if (vhash[7] <= Htarg) {
+				if (vhash[3] < Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf;
-					for (int i = 0; i < 8; i++)
+					for (int i = 0; i < 4; i++)
 						vhash2[i] = vhash[i];
 				}
-				if (vhash[15] <= Htarg) {
+				if (vhash[7] < Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf + 1;
-					for (int i = 0; i<8; i++)
+					for (int i = 0; i<4; i++)
+						vhash2[i] = vhash[i+4];
+				}
+				if (vhash[11] < Htarg) {
+					*((uint32_t *)full_data + 368) = nonce_buf + 2;
+					for (int i = 0; i<4; i++)
 						vhash2[i] = vhash[i+8];
 				}
-				if (vhash[23] <= Htarg) {
-					*((uint32_t *)full_data + 368) = nonce_buf + 2;
-					for (int i = 0; i<8; i++)
-						vhash2[i] = vhash[i+16];
-				}
-				if (vhash[31] <= Htarg) {
+				if (vhash[15] < Htarg) {
 					*((uint32_t *)full_data + 368) = nonce_buf + 3;
-					for (int i = 0; i<8; i++)
-						vhash2[i] = vhash[i+24];
+					for (int i = 0; i<4; i++)
+						vhash2[i] = vhash[i+12];
 
 				}
                 //memset(blockhash_half + 32, 0x0, 32);
                 memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
-			//	for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
-				//Sleep(2);
-                //haraka512_zero((unsigned char*)vhash, (unsigned char*)blockhash_half);
-				
-				//Sleep(2);
-				
-				
+			
+				work->valid_nonces++;
 					
-					    work->valid_nonces++;
-					
-                        memcpy(work->data, endiandata, 140);
-                        int nonce = work->valid_nonces-1;
-                        memcpy(work->extra, sol_data, 1347);
-                        bn_store_hash_target_ratio(vhash2, work->target, work, nonce);
+                memcpy(work->data, endiandata, 140);
+                int nonce = work->valid_nonces-1;
+                memcpy(work->extra, sol_data, 1347);
+                bn_store_hash_target_ratio((uint32_t *)vhash2, work->target, work, nonce);
                                     
-						work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
-                        pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-						goto out; 
+				work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
+                pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
+				goto out; 
 					
 						
 			}
@@ -192,14 +184,8 @@ uint32_t _ALIGN(64) vhash2[8];
 		nonce_buf += throughput;
 
 	} while (!work_restart[thr_id].restart);
-        
-        
+   
 out:
-	//gettimeofday(&tv_end, NULL);
-	//timeval_subtract(&diff, &tv_end, &tv_start);
-	//secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
-	//solps = (double)nonce_buf / secs;
-	//gpulog(LOG_INFO, thr_id, "%u K/hashes in %.2f s (%.2f MH/s)", nonce_buf/1000, secs, solps / 1000000);
 
 	return work->valid_nonces;
 }
