@@ -39,20 +39,7 @@ ccminer_LDFLAGS += -L/usr/local/llvm/lib
 ccminer_LDADD += -lomp
 endif
 
-#ccminer_CPPFLAGS += -DUSE_LIBSODIUM
-#ccminer_LDFLAGS += -Lequi/lib
-#ccminer_LDADD += -lsodium
-#ccminer_LDADD += -lcuda
 
-#nvcc_ARCH :=
-#nvcc_ARCH += -gencode=arch=compute_61,code=\"sm_61,compute_61\"
-#nvcc_ARCH += -gencode=arch=compute_52,code=\"sm_52,compute_52\"
-#nvcc_ARCH += -gencode=arch=compute_50,code=\"sm_50,compute_50\"
-#nvcc_ARCH += -gencode=arch=compute_35,code=\"sm_35,compute_35\"
-#nvcc_ARCH += -gencode=arch=compute_30,code=\"sm_30,compute_30\"
-
-#nvcc_FLAGS = $(nvcc_ARCH) @CUDA_INCLUDES@ -I. @CUDA_CFLAGS@
-#nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
 
 
 
