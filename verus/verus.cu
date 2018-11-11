@@ -22,7 +22,7 @@ void verus_init(int thr_id)
 {
 CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 2 * sizeof(uint32_t)));
 };
-void verus_setBlock(void *blockf, const void *pTargetIn)
+void verus_setBlock(void *blockf, void *pTargetIn)
 {
 CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
 CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
