@@ -22,10 +22,10 @@ void verus_init(int thr_id)
 {
 CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 2 * sizeof(uint32_t)));
 };
-void verus_setBlock(void *blockf, void *pTargetIn)
+void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn)
 {
-CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
-CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
+CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, (void**)pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
+CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, (void**)blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
 };
 __host__
 void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *resNonces)

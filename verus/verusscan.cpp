@@ -36,7 +36,7 @@ static int valid_sols[MAX_GPUS] = { 0 };
 static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
 static __thread uint32_t throughput = 0;
 extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
-extern void verus_setBlock(void *blockf, void *pTargetIn);
+extern void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn);
 extern void verus_init(int thr_id);
 
 #ifndef htobe32
