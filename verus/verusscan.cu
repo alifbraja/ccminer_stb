@@ -1,218 +1,196 @@
-/**
- * Equihash solver interface for ccminer (compatible with linux and windows)
- * Solver taken from nheqminer, by djeZo (and NiceHash)
- * tpruvot - 2017 (GPL v3)
- */
-#include <stdio.h>
-#include <unistd.h>
-#include <assert.h>
-
-#include <stdexcept>
-#include <vector>
-
-#include <sph/sph_sha2.h>
-
-//#include "eqcuda.hpp"
-//#include "equihash.h" // equi_verify()
 
 #include <miner.h>
-extern "C"
-{
-#include "./verus/haraka.h"
-}
-
-// input here is 140 for the header and 1344 for the solution (equi.cpp)
-
 
 #include <cuda_helper.h>
 
-#define EQNONCE_OFFSET 30 /* 27:34 */
-#define NONCE_OFT EQNONCE_OFFSET
+__device__  uint32_t sbox[64] =
+{ 0x7b777c63, 0xc56f6bf2, 0x2b670130, 0x76abd7fe, 0x7dc982ca, 0xf04759fa, 0xafa2d4ad, 0xc072a49c, 0x2693fdb7, 0xccf73f36, 0xf1e5a534, 0x1531d871, 0xc323c704, 0x9a059618, 0xe2801207, 0x75b227eb, 0x1a2c8309, 0xa05a6e1b, 0xb3d63b52, 0x842fe329, 0xed00d153, 0x5bb1fc20, 0x39becb6a, 0xcf584c4a, 0xfbaaefd0, 0x85334d43, 0x7f02f945, 0xa89f3c50, 0x8f40a351, 0xf5389d92, 0x21dab6bc, 0xd2f3ff10, 0xec130ccd, 0x1744975f, 0x3d7ea7c4, 0x73195d64, 0xdc4f8160, 0x88902a22, 0x14b8ee46, 0xdb0b5ede, 0x0a3a32e0, 0x5c240649, 0x62acd3c2, 0x79e49591, 0x6d37c8e7, 0xa94ed58d, 0xeaf4566c, 0x08ae7a65, 0x2e2578ba, 0xc6b4a61c, 0x1f74dde8, 0x8a8bbd4b, 0x66b53e70, 0x0ef60348, 0xb9573561, 0x9e1dc186, 0x1198f8e1, 0x948ed969, 0xe9871e9b, 0xdf2855ce, 0x0d89a18c, 0x6842e6bf, 0x0f2d9941, 0x16bb54b0 };
+#define XT(x) (((x) << 1) ^ ((((x) >> 7) & 1) * 0x1b))
+__global__ void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce);
+__device__ void haraka512_perm(unsigned char *out, unsigned char *in);
+static uint32_t *d_nonces[MAX_GPUS];
+__device__ __constant__ uint8_t blockhash_half[128];
+__device__ __constant__ uint32_t ptarget[8];
 
-static bool init[MAX_GPUS] = { 0 };
-static int valid_sols[MAX_GPUS] = { 0 };
-static uint8_t _ALIGN(64) data_sols[MAX_GPUS][10][1536] = { 0 }; // 140+3+1344 required
-extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
-extern void verus_setBlock(void *blockf,const void *pTargetIn);
-extern void verus_init(int thr_id);
+__device__   void memcpy_decker(unsigned char *dst, unsigned char *src, int len) {
+	int i;
+	for (i = 0; i< len; i++) { dst[i] = src[i]; }
+}
 
-#ifndef htobe32
-#define htobe32(x) swab32(x)
-#endif
-
-extern "C" void VerusHashHalf(uint8_t *result, uint8_t *data, size_t len)
+__host__
+void verus_init(int thr_id)
 {
-    unsigned char buf[128];
-    unsigned char *bufPtr = buf;
-    int pos = 0, nextOffset = 64;
-    unsigned char *bufPtr2 = bufPtr + nextOffset;
-    unsigned char *ptr = (unsigned char *)data;
-    uint32_t count = 0;
-
-    // put our last result or zero at beginning of buffer each time
-    memset(bufPtr, 0, 32);
-
-    // digest up to 32 bytes at a time
-    for ( ; pos < len; pos += 32)
-    {
-        if (len - pos >= 32)
-        {
-            memcpy(bufPtr + 32, ptr + pos, 32);
-        }
-        else
-        {
-            int i = (int)(len - pos);
-            memcpy(bufPtr + 32, ptr + pos, i);
-            memset(bufPtr + 32 + i, 0, 32 - i);
-        }
-
-        count++;
-
-        if (count == 47) break; // exit from cycle before last iteration
-
-        //printf("[%02d.1] ", count); for (int z=0; z<64; z++) printf("%02x", bufPtr[z]); printf("\n");
-		haraka512_port_zero(bufPtr2, bufPtr); // ( out, in)
-        bufPtr2 = bufPtr;
-        bufPtr += nextOffset;
-        //printf("[%02d.2] ", count); for (int z=0; z<64; z++) printf("%02x", bufPtr[z]); printf("\n");
-
-
-        nextOffset *= -1;
-    }
-    memcpy(result, bufPtr, 32);
+CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 2 * sizeof(uint32_t)));
 };
 
-static void cb_hashdone(int thr_id) {
-	if (!valid_sols[thr_id]) valid_sols[thr_id] = -1;
-}
-static bool cb_cancel(int thr_id) {
-	if (work_restart[thr_id].restart)
-		valid_sols[thr_id] = -1;
-	return work_restart[thr_id].restart;
+void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn)
+{
+CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, (void**)pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
+CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, (void**)blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
+};
+__host__
+void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *resNonces)
+{
+	cudaMemset(d_nonces[thr_id], 0xff, 2 * sizeof(uint32_t));
+	const uint32_t threadsperblock = 256;
+
+	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
+	dim3 block(threadsperblock);
+
+	verus_gpu_hash << <grid, block >> >(threads, startNonce, d_nonces[thr_id]);
+	cudaThreadSynchronize();
+	cudaMemcpy(resNonces, d_nonces[thr_id], 2 * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	//memcpy(resNonces, h_nonces[thr_id], NBN * sizeof(uint32_t));
+
+};
+
+
+
+//__constant__ static const
+
+// Simulate _mm_aesenc_si128 instructions from AESNI
+__device__   void aesenc(unsigned char *s, volatile uint32_t *sharedMemory1)
+{
+	uint32_t  t, u;
+	register uint32_t v[4][4];
+
+v[0][0] = ((uint8_t*)&sharedMemory1[0])[s[0]]; 
+v[3][1] = ((uint8_t*)&sharedMemory1[0])[s[1]]; 
+v[2][2] = ((uint8_t*)&sharedMemory1[0])[s[2]]; 
+v[1][3] = ((uint8_t*)&sharedMemory1[0])[s[3]]; 
+v[1][0] = ((uint8_t*)&sharedMemory1[0])[s[4]]; 
+v[0][1] = ((uint8_t*)&sharedMemory1[0])[s[5]]; 
+v[3][2] = ((uint8_t*)&sharedMemory1[0])[s[6]]; 
+v[2][3] = ((uint8_t*)&sharedMemory1[0])[s[7]]; 
+v[2][0] = ((uint8_t*)&sharedMemory1[0])[s[8]]; 
+v[1][1] = ((uint8_t*)&sharedMemory1[0])[s[9]]; 
+v[0][2] = ((uint8_t*)&sharedMemory1[0])[s[10]]; 
+v[3][3] = ((uint8_t*)&sharedMemory1[0])[s[11]]; 
+v[3][0] = ((uint8_t*)&sharedMemory1[0])[s[12]]; 
+v[2][1] = ((uint8_t*)&sharedMemory1[0])[s[13]]; 
+v[1][2] = ((uint8_t*)&sharedMemory1[0])[s[14]]; 
+v[0][3] = ((uint8_t*)&sharedMemory1[0])[s[15]]; 
+
+t = v[0][0];	
+u = v[0][0] ^ v[0][1] ^ v[0][2] ^ v[0][3]; 
+v[0][0] = v[0][0] ^ u ^ XT(v[0][0] ^ v[0][1]); 
+v[0][1] = v[0][1] ^ u ^ XT(v[0][1] ^ v[0][2]); 
+v[0][2] = v[0][2] ^ u ^ XT(v[0][2] ^ v[0][3]); 
+v[0][3] = v[0][3] ^ u ^ XT(v[0][3] ^ t); 
+t = v[1][0]; 
+u = v[1][0] ^ v[1][1] ^ v[1][2] ^ v[1][3]; 
+v[1][0] = v[1][0] ^ u ^ XT(v[1][0] ^ v[1][1]); 
+v[1][1] = v[1][1] ^ u ^ XT(v[1][1] ^ v[1][2]); 
+v[1][2] = v[1][2] ^ u ^ XT(v[1][2] ^ v[1][3]); 
+v[1][3] = v[1][3] ^ u ^ XT(v[1][3] ^ t); 
+t = v[2][0]; 
+u = v[2][0] ^ v[2][1] ^ v[2][2] ^ v[2][3]; 
+v[2][0] = v[2][0] ^ u ^ XT(v[2][0] ^ v[2][1]); 
+v[2][1] = v[2][1] ^ u ^ XT(v[2][1] ^ v[2][2]); 
+v[2][2] = v[2][2] ^ u ^ XT(v[2][2] ^ v[2][3]); 
+v[2][3] = v[2][3] ^ u ^ XT(v[2][3] ^ t); 
+t = v[3][0]; 
+u = v[3][0] ^ v[3][1] ^ v[3][2] ^ v[3][3]; 
+v[3][0] = v[3][0] ^ u ^ XT(v[3][0] ^ v[3][1]); 
+v[3][1] = v[3][1] ^ u ^ XT(v[3][1] ^ v[3][2]); 
+v[3][2] = v[3][2] ^ u ^ XT(v[3][2] ^ v[3][3]); 
+v[3][3] = v[3][3] ^ u ^ XT(v[3][3] ^ t); 
+
+	s[0] = v[0][0]; 
+s[1] = v[0][1]; 
+s[2] = v[0][2]; 
+s[3] = v[0][3]; 
+s[4] = v[1][0]; 
+s[5] = v[1][1]; 
+s[6] = v[1][2]; 
+s[7] = v[1][3]; 
+s[8] = v[2][0]; 
+s[9] = v[2][1]; 
+s[10] = v[2][2]; 
+s[11] = v[2][3]; 
+s[12] = v[3][0]; 
+s[13] = v[3][1]; 
+s[14] = v[3][2]; 
+s[15] = v[3][3];
+
 }
 
-extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
+// Simulate _mm_unpacklo_epi32
+__device__ void unpacklo32(unsigned char *t, unsigned char *a, unsigned char *b)
 {
-	uint32_t _ALIGN(64) endiandata[35];
-	int i;
-	
-	
-	uint32_t *pdata = work->data;
-	uint32_t *ptarget = work->target;
-    int dev_id = device_map[thr_id];
-	uint32_t throughput;
-	struct timeval tv_start, tv_end, diff;
-	double secs, solps;
-	
-    uint8_t blockhash_half[64];
-	uint32_t nonce_buf = 0;
-	
-    unsigned char block_41970[] = {0xfd, 0x40, 0x05}; // solution
-	uint8_t _ALIGN(64) full_data[140+3+1344] = { 0 };
-    uint8_t* sol_data = &full_data[140];
-	uint32_t intensity = 25;
-	
+	unsigned char tmp[16];
+	memcpy_decker(tmp, a, 4);
+	memcpy_decker(tmp + 4, b, 4);
+	memcpy_decker(tmp + 8, a + 4, 4);
+	memcpy_decker(tmp + 12, b + 4, 4);
+	memcpy_decker(t, tmp, 16);
+}
+
+// Simulate _mm_unpackhi_epi32
+__device__  void unpackhi32(unsigned char *t, unsigned char *a, unsigned char *b)
+{
+	unsigned char tmp[16];
+	memcpy_decker(tmp, a + 8, 4);
+	memcpy_decker(tmp + 4, b + 8, 4);
+	memcpy_decker(tmp + 8, a + 12, 4);
+	memcpy_decker(tmp + 12, b + 12, 4);
+	memcpy_decker(t, tmp, 16);
+
+}
+
+
+__global__ __launch_bounds__(256, 1)
+void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce)
+{
+	uint32_t thread = blockDim.x * blockIdx.x + threadIdx.x;
+
+	int i, j; 
+	unsigned char s[64], tmp[16];
+		__shared__ volatile uint32_t sharedMemory1[64];
+	if (threadIdx.x < 64)
+		sharedMemory1[threadIdx.x] = sbox[threadIdx.x];//	for (i = 0; i < 64; ++i)
+    					
+
+		uint32_t nounce = startNonce + thread;
+		unsigned char in[64];
 		
-	throughput = cuda_default_throughput(thr_id, 1U << intensity);
-	if (init[thr_id]) throughput = min(throughput, 0x8000000);
-	
-	
-	memcpy(endiandata, pdata, 140);
-	memcpy(full_data, endiandata, 140);  //pdata
-    memcpy(full_data +140, block_41970, 3);
-  
-	
-	if (opt_benchmark)
-		ptarget[7] = 0x000f;
-	if (!init[thr_id])
-	{
-		cudaSetDevice(dev_id);
-		if (opt_cudaschedule == -1 && gpu_threads == 1) {
-			cudaDeviceReset();
-			// reduce cpu usage
-			cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
-			CUDA_LOG_ERROR();
+		uint64_t blockhash[4];
+		memcpy(s, blockhash_half, 32);
+		memset(s + 32, 0x0, 32);
+		((uint32_t *)&s)[8] = nounce;
+		memcpy(in +48, s + 48, 8);
+		//memcpy_decker(s, in, 64);
+    #pragma unroll 5
+		for (i = 0; i < 5; ++i) {
+			// aes round(s)
+			__syncthreads();
+			for (j = 0; j < 2; ++j) {
+
+				aesenc(s, sharedMemory1);
+				aesenc(s + 16, sharedMemory1);
+				aesenc(s + 32, sharedMemory1);
+				aesenc(s + 48, sharedMemory1);
+			}
+			unpacklo32(tmp, s, s + 16);
+			unpackhi32(s, s, s + 16);
+			unpacklo32(s + 16, s + 32, s + 48);
+			unpackhi32(s + 32, s + 32, s + 48);
+			unpacklo32(s + 48, s, s + 32);
+			unpackhi32(s, s, s + 32);
+			unpackhi32(s + 32, s + 16, tmp);
+			unpacklo32(s + 16, s + 16, tmp);
+
 		}
-		cuda_get_arch(thr_id);
-	//	api_set_throughput(thr_id, throughput);
-		gpulog(LOG_INFO, thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
-		verus_init(thr_id);
-		init[thr_id] = true;
-	}
-	
-	VerusHashHalf(blockhash_half, full_data, 1487);	
-	memset(blockhash_half + 32, 0x00, 32);
-	
-	gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
-	
-	work->valid_nonces = 0;
-	verus_setBlock(blockhash_half, work->target); //set data to gpu kernel
-	
-        
-	do {
+		for (i = 48; i < 56; i++) {
+			s[i] = s[i] ^ in[i];
+		}
+
 		
-            *hashes_done = (uint64_t)nonce_buf + (uint64_t)throughput;
-		     verus_hash(thr_id, throughput, nonce_buf , work->nonces);
-			
-			if (work->nonces[0] != UINT32_MAX )
-		   {
-				const uint32_t Htarg = ptarget[7];
-				uint32_t _ALIGN(64) vhash[8];
-				
-                *((uint32_t *)full_data + 368) = work->nonces[0];
-                                       
-                memset(blockhash_half + 32, 0x0, 32);
-                memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
-			//	for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
-				//Sleep(2);
-                haraka512_port_zero((unsigned char*)vhash, (unsigned char*)blockhash_half);
-				//for (int i = 0; i < 32; i++) printf("", ((uint8_t*)(&vhash))[i]);
-				//Sleep(2);
-				
-				if (vhash[7] <= Htarg && fulltest(vhash, ptarget))
-					{
-					
-					    work->valid_nonces++;
-					
-                        memcpy(work->data, endiandata, 140);
-                        int nonce = work->valid_nonces-1;
-                        memcpy(work->extra, sol_data, 1347);
-                        bn_store_hash_target_ratio(vhash, work->target, work, nonce);
-                                    
-						work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
-                        pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-						goto out; 
-					}
-						
-			}
-			if ((uint64_t)throughput + (uint64_t)nonce_buf >= (uint64_t)UINT32_MAX) {
-				
-				break;
-			}
-		nonce_buf += throughput;
+		
+		
 
-	} while (!work_restart[thr_id].restart);
-        
-        
-out:
-	gettimeofday(&tv_end, NULL);
-	timeval_subtract(&diff, &tv_end, &tv_start);
-	secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
-	solps = (double)nonce_buf / secs;
-	//gpulog(LOG_INFO, thr_id, "%u K/hashes in %.2f s (%.2f MH/s)", nonce_buf/1000, secs, solps / 1000000);
-
-	return work->valid_nonces;
-}
-
-// cleanup
-void free_verushash(int thr_id)
-{
-	if (!init[thr_id])
-		return;
-
+		if (((uint64_t*)&s[48])[0] < ((uint64_t*)&ptarget)[3]) { resNonce[0] = nounce; }
 	
-
-	init[thr_id] = false;
-}
+};
 
 
