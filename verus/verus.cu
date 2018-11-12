@@ -9,8 +9,8 @@ __device__  uint32_t sbox[64] =
 __global__ void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce);
 __device__ void haraka512_perm(unsigned char *out, unsigned char *in);
 static uint32_t *d_nonces[MAX_GPUS];
-__constant__ uint8_t blockhash_half[128];
-__constant__ uint32_t ptarget[8];
+__device__ __constant__ uint8_t blockhash_half[128];
+__device__ __constant__ uint32_t ptarget[8];
 
 __device__   void memcpy_decker(unsigned char *dst, unsigned char *src, int len) {
 	int i;
@@ -22,6 +22,7 @@ void verus_init(int thr_id)
 {
 CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 2 * sizeof(uint32_t)));
 };
+
 void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn)
 {
 CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, (void**)pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
