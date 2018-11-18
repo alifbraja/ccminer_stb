@@ -53,10 +53,10 @@ extern void x15_whirlpool_cpu_hash_64(int thr_id, uint32_t threads, uint32_t sta
 extern void x15_whirlpool_cpu_free(int thr_id);
 
 extern void x17_sha512_cpu_init(int thr_id, uint32_t threads);
-extern void x17_sha512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash);
+extern void x17_sha512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, uint32_t *d2_hash);
 
 extern void x17_haval256_cpu_init(int thr_id, uint32_t threads);
-extern void x17_haval256_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, const int outlen);
+extern void x17_haval256_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, const int outlen, uint32_t *d2_hash);
 
 struct hmq_contexts
 {
@@ -417,7 +417,7 @@ extern "C" int scanhash_hmq17(int thr_id, struct work* work, uint32_t max_nonce,
 
 		hmq_filter_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
 		x15_whirlpool_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash_br2[thr_id], 512); order++;
+		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash_br2[thr_id], 512,NULL); order++;
 		hmq_merge_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
 
 		x11_echo512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
@@ -444,15 +444,15 @@ extern "C" int scanhash_hmq17(int thr_id, struct work* work, uint32_t max_nonce,
 
 		hmq_filter_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
 		x13_fugue512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-		x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash_br2[thr_id]); order++;
+		x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash_br2[thr_id],NULL); order++;
 		hmq_merge_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
 
 		quark_groestl512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
-		x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+		x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id],NULL); order++;
 		TRACE("sha512 ");
 
 		hmq_filter_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
-		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], 512); order++;
+		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], 512,NULL); order++;
 		x15_whirlpool_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash_br2[thr_id], order++);
 		hmq_merge_cpu(thr_id, throughput, d_hash[thr_id], d_hash_br2[thr_id]);
 		TRACE("hav/wh ");
