@@ -1,5 +1,5 @@
 /**
- * X17 algorithm (X15 + sha512 + haval256)
+ * modified x17 for x18 minato coin
  */
 
 extern "C" {
@@ -154,7 +154,7 @@ extern "C" void x18hash(void *output, const void *input)
 
 	sph_gost512_init(&ctx_gost);
 	sph_gost512(&ctx_gost, hashA, 64);
-	sph_gost512_close(&ctx_gost, hashB);
+	sph_gost512_close(&ctx_gost, hashB); //added gost
 
 	memcpy(output, hashB, 32);
 }
@@ -246,9 +246,9 @@ extern "C" int scanhash_x17(int thr_id, struct work* work, uint32_t max_nonce, u
 		x14_shabal512_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 		x15_whirlpool_cpu_hash_64(thr_id, throughput, pdata[19], NULL, d_hash[thr_id], order++);
 		x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], d2_hash[thr_id]); order++;
-		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], 256, d2_hash[thr_id]); order++;
+		x17_haval256_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id], 256, d2_hash[thr_id]); order++; 
 		
-		streebog_cpu_hash_64(thr_id, throughput, d_hash[thr_id]);
+		streebog_cpu_hash_64(thr_id, throughput, d_hash[thr_id]); //added gost
 		
 	
 		*hashes_done = pdata[19] - first_nonce + throughput;
