@@ -89,20 +89,33 @@ uint64_t Tone(uint64_t* K, uint64_t* r, uint64_t* W, const int a, const int i)
 
 __global__
 /*__launch_bounds__(256, 4)*/
-void x17_sha512_gpu_hash_64(const uint32_t threads, uint64_t *g_hash)
+void x17_sha512_gpu_hash_64(const uint32_t threads, uint64_t *g_hash, uint64_t *g2_hash)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads)
 	{
 		const uint64_t hashPosition = thread;
 		uint64_t *pHash = &g_hash[hashPosition*8U];
+		uint64_t *p2Hash = &g2_hash[hashPosition * 8U];
 
 		uint64_t W[80];
 		#pragma unroll
 		for (int i = 0; i < 8; i ++) {
 			W[i] = SWAP64(pHash[i]);
+			p2Hash[i] = pHash[i];
 		}
 		W[8] = 0x8000000000000000;
+
+		if (0)
+		{
+			printf("\n\ngpu 512 in: ");
+			for (int i = 0; i < 8; i++)
+				printf("%08x", g2_hash[i]);
+			
+		}
+
+
+
 
 		#pragma unroll 69
 		for (int i = 9; i<78; i++) {
@@ -150,7 +163,12 @@ void x17_sha512_gpu_hash_64(const uint32_t threads, uint64_t *g_hash)
 			pHash[u] = SWAP64(r[u] + IV512[u]);
 		}
 #endif
+
+
 	}
+
+	
+
 }
 
 __host__
@@ -160,14 +178,14 @@ void x17_sha512_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
-void x17_sha512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash)
+void x17_sha512_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, uint32_t *d2_hash)
 {
 	const uint32_t threadsperblock = 256;
 
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	x17_sha512_gpu_hash_64 <<<grid, block>>> (threads, (uint64_t*)d_hash);
+	x17_sha512_gpu_hash_64 <<<grid, block>>> (threads, (uint64_t*)d_hash,(uint64_t*)d2_hash);
 }
 
 __constant__

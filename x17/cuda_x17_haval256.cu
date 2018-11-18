@@ -259,13 +259,17 @@
 }
 
 __global__ /* __launch_bounds__(256, 6) */
-void x17_haval256_gpu_hash_64(const uint32_t threads, uint64_t *g_hash, const int outlen)
+void x17_haval256_gpu_hash_64(const uint32_t threads, uint64_t *g_hash, const int outlen, uint64_t *g2_hash)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads)
 	{
+		
+
+
 		const uint64_t hashPosition = thread*8U;
 		uint64_t *pHash = &g_hash[hashPosition];
+		uint64_t *p2Hash = &g2_hash[hashPosition];
 
 		uint32_t s0, s1, s2, s3, s4, s5, s6, s7;
 		const uint32_t u0 = s0 = 0x243F6A88;
@@ -325,12 +329,13 @@ void x17_haval256_gpu_hash_64(const uint32_t threads, uint64_t *g_hash, const in
 		pHash[2] = hash.h8[2];
 		pHash[3] = hash.h8[3];
 
-		if (outlen == 512) {
-			pHash[4] = 0; //hash.h8[4];
-			pHash[5] = 0; //hash.h8[5];
-			pHash[6] = 0; //hash.h8[6];
-			pHash[7] = 0; //hash.h8[7];
-		}
+		
+			pHash[4] = p2Hash[4]; //hash.h8[4];
+			pHash[5] = p2Hash[5]; //hash.h8[5];
+			pHash[6] = p2Hash[6]; //hash.h8[6];
+			pHash[7] = p2Hash[7]; //hash.h8[7];
+	
+
 	}
 }
 
@@ -340,12 +345,12 @@ void x17_haval256_cpu_init(int thr_id, uint32_t threads)
 }
 
 __host__
-void x17_haval256_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, const int outlen)
+void x17_haval256_cpu_hash_64(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash, const int outlen, uint32_t *d2_hash)
 {
 	const uint32_t threadsperblock = 256;
 
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	x17_haval256_gpu_hash_64 <<<grid, block>>> (threads, (uint64_t*)d_hash, outlen);
+	x17_haval256_gpu_hash_64 <<<grid, block>>> (threads, (uint64_t*)d_hash, outlen, (uint64_t*)d2_hash);
 }
