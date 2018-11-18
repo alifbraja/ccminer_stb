@@ -511,7 +511,7 @@ extern "C" int scanhash_x16s(int thr_id, struct work* work, uint32_t max_nonce, 
 				TRACE("shabal :");
 				break;
 			case SHA512:
-				x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id]); order++;
+				x17_sha512_cpu_hash_64(thr_id, throughput, pdata[19], d_hash[thr_id],NULL); order++;
 				TRACE("sha512 :");
 				break;
 			}
