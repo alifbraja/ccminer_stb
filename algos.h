@@ -143,7 +143,7 @@ static const char *algo_names[] = {
 	"x15",
 	"x16r",
 	"x16s",
-	"x17",
+	"x18",
 	"vanilla",
 	"veltor",
 	"whirlcoin",

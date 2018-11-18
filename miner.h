@@ -957,7 +957,7 @@ void x14hash(void *output, const void *input);
 void x15hash(void *output, const void *input);
 void x16r_hash(void *output, const void *input);
 void x16s_hash(void *output, const void *input);
-void x17hash(void *output, const void *input);
+void x18hash(void *output, const void *input);
 void wildkeccak_hash(void *output, const void *input, uint64_t* scratchpad, uint64_t ssize);
 void zr5hash(void *output, const void *input);
 void zr5hash_pok(void *output, uint32_t *pdata);
