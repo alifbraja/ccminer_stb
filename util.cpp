@@ -2351,7 +2351,7 @@ void print_hash_tests(void)
 	x16s_hash(&hash[0], &buf[0]);
 	printpfx("x16s", hash);
 
-	x17hash(&hash[0], &buf[0]);
+	x18hash(&hash[0], &buf[0]);
 	printpfx("x17", hash);
 
 	//memcpy(buf, zrtest, 80);
