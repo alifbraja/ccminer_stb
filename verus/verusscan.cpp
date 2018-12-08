@@ -43,6 +43,7 @@ extern void verus_init(int thr_id);
 #define htobe32(x) swab32(x)
 #endif
 
+
 extern "C" void VerusHashHalf(void *result, const void *data, size_t len)
 {
 	unsigned char buf[128];
@@ -85,6 +86,7 @@ extern "C" void VerusHashHalf(void *result, const void *data, size_t len)
 	memcpy(result, bufPtr, 32);
 };
 
+
 static void cb_hashdone(int thr_id) {
 	if (!valid_sols[thr_id]) valid_sols[thr_id] = -1;
 }
@@ -93,6 +95,7 @@ static bool cb_cancel(int thr_id) {
 		valid_sols[thr_id] = -1;
 	return work_restart[thr_id].restart;
 }
+
 
 extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
@@ -104,7 +107,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	struct timeval tv_start, tv_end, diff;
 	double secs, solps;
 
-	uint8_t blockhash_half[64];
+	uint8_t blockhash_half[64], blockhash_pre[64], tmp[16];
 	uint32_t nonce_buf = 0;
 
 	unsigned char block_41970[] = { 0xfd, 0x40, 0x05 }; // solution
@@ -136,15 +139,23 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 
 	VerusHashHalf(blockhash_half, full_data, 1487); // full VerusHash without last iteration
 
-	gettimeofday(&tv_start, NULL);  //get millisecond timer val for cal of h
+	
 
 	work->valid_nonces = 0;
 
-	verus_setBlock(blockhash_half, work->target); //set data to gpu kernel
+	memcpy(blockhash_pre, blockhash_half, 64);
+	const unsigned char rk[16] = { 0 };
+	aesenc(blockhash_pre, rk);
+	aesenc(blockhash_pre + 16, rk);
+	aesenc(blockhash_pre, rk);
+	aesenc(blockhash_pre + 16, rk);
+	unpacklo32(tmp, blockhash_pre, blockhash_pre + 16);
+	unpackhi32(blockhash_pre, blockhash_pre, blockhash_pre + 16);
+	memcpy(blockhash_pre + 16, tmp, 16);
+	verus_setBlock(blockhash_pre, work->target); //set data to gpu kernel
 
 
 	do {
-
 		*hashes_done = nonce_buf + throughput;
 		//*hashes_done = mainnonce;
 		//printf("firstnoncef= %08x, maxnonce = %08x,throughput = %08x\n",first_nonce,max_nonce, throughput);
@@ -162,47 +173,44 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 			memset(blockhash_half + 32, 0x0, 32);
 			memcpy(blockhash_half + 32, full_data + 1486 - 14, 15);
 			//printf("blockhash half\n");
-			for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
-			//printf("\n");       
+			//for (int i = 0; i < 32; i++) printf("", blockhash_half[i]);
+			//printf("\n");
 			haraka512_port_zero((unsigned char*)vhash, (unsigned char*)blockhash_half);
 			//printf("full hash \n");
-			for (int i = 0; i < 32; i++) printf("", ((uint8_t*)(&vhash))[i]);
+			//for (int i = 0; i < 32; i++) printf("", ((uint8_t*)(&vhash))[i]);
 			//printf("\n");
 
 
-			if (vhash[7] <= Htarg && fulltest(vhash, ptarget))
+			if (vhash[7] <= Htarg) // && fulltest(vhash, ptarget))
 			{
+				if (fulltest(vhash, ptarget))
+				{
+					work->valid_nonces++;
 
-				work->valid_nonces++;
+					memcpy(work->data, endiandata, 140);
+					int nonce = work->valid_nonces - 1;
+					memcpy(work->extra, sol_data, 1347);
+					bn_store_hash_target_ratio(vhash, work->target, work, nonce);
 
-				memcpy(work->data, endiandata, 140);
-				int nonce = work->valid_nonces - 1;
-				memcpy(work->extra, sol_data, 1347);
-				bn_store_hash_target_ratio(vhash, work->target, work, nonce);
+					work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
+				}
 
-				work->nonces[work->valid_nonces - 1] = endiandata[NONCE_OFT];
 				pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-
-
-				goto out;
+				if (work->valid_nonces > 0) goto out;
+			}
+			else {
+				gpulog(LOG_ERR, thr_id, "Invalid nonce");
 			}
 
 		}
-		if ((uint64_t)throughput + (uint64_t)nonce_buf >= (uint64_t)max_nonce) {
-
-			break;
-		}
+		if ((uint64_t)throughput + (uint64_t)nonce_buf >= (uint64_t)max_nonce) break;
 		nonce_buf += throughput;
 
 	} while (!work_restart[thr_id].restart);
 
 
 out:
-	gettimeofday(&tv_end, NULL);
-	timeval_subtract(&diff, &tv_end, &tv_start);
-	secs = (1.0 * diff.tv_sec) + (0.000001 * diff.tv_usec);
-	solps = (double)nonce_buf / secs;
-	gpulog(LOG_INFO, thr_id, "%d k/hashes in %.2f s (%.2f MH/s)", nonce_buf / 1000, secs, solps / 1000000);
+	
 
 	// H/s
 

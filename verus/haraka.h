@@ -1,4 +1,4 @@
-﻿/*
+/*
 Plain C implementation of the Haraka256 and Haraka512 permutations.
 */
 
@@ -33,3 +33,9 @@ void haraka256_port(unsigned char *out, const unsigned char *in);
 
 /* Implementation of Haraka-256 using sk.seed constants */
 void haraka256_sk(unsigned char *out, const unsigned char *in);
+
+void aesenc(unsigned char *s, const unsigned char *rk);
+
+void unpacklo32(unsigned char *t, unsigned char *a, unsigned char *b);
+
+void unpackhi32(unsigned char *t, unsigned char *a, unsigned char *b);
