@@ -68,6 +68,16 @@ extern u128 rc[40];
   s2 = _mm_aesenc_si128(s2, rc[rci + 6]); \
   s3 = _mm_aesenc_si128(s3, rc[rci + 7]); \
 
+#define AES40(s0, s1, s2, s3) \
+  s0 = _mm_aesenc_si128(s0, zilch); \
+  s1 = _mm_aesenc_si128(s1, zilch); \
+  s2 = _mm_aesenc_si128(s2, zilch); \
+  s3 = _mm_aesenc_si128(s3, zilch); \
+  s0 = _mm_aesenc_si128(s0, zilch); \
+  s1 = _mm_aesenc_si128(s1, zilch); \
+  s2 = _mm_aesenc_si128(s2, zilch); \
+  s3 = _mm_aesenc_si128(s3, zilch); \
+
 #define AES4_zero(s0, s1, s2, s3, rci) \
   s0 = _mm_aesenc_si128(s0, rc0[rci]); \
   s1 = _mm_aesenc_si128(s1, rc0[rci + 1]); \
@@ -78,11 +88,11 @@ extern u128 rc[40];
   s2 = _mm_aesenc_si128(s2, rc0[rci + 6]); \
   s3 = _mm_aesenc_si128(s3, rc0[rci + 7]); \
 
-#define AES4_4x(s0, s1, s2, s3, rci) \
-  AES4(s0[0], s0[1], s0[2], s0[3], rci); \
-  AES4(s1[0], s1[1], s1[2], s1[3], rci); \
-  AES4(s2[0], s2[1], s2[2], s2[3], rci); \
-  AES4(s3[0], s3[1], s3[2], s3[3], rci);
+#define AES4_4x(s0, s1, s2, s3) \
+  AES40(s0[0], s0[1], s0[2], s0[3]); \
+  AES40(s1[0], s1[1], s1[2], s1[3]); \
+  AES40(s2[0], s2[1], s2[2], s2[3]); \
+  AES40(s3[0], s3[1], s3[2], s3[3]);
 
 #define AES4_8x(s0, s1, s2, s3, s4, s5, s6, s7, rci) \
   AES4_4x(s0, s1, s2, s3, rci); \
