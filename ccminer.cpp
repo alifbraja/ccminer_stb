@@ -3709,7 +3709,7 @@ int main(int argc, char *argv[])
 		printf("  Stripped out to do Verushash 2.0 by Monkins1010\n\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 		printf("VRSC donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec (monkins1010)\n\n");
-		printf("***  Big thanks to Michael Toughtini of Verus ***\n");
+		printf("***  Big thanks to Michael Toutonghi of Verus ***\n");
 
 	}
 
