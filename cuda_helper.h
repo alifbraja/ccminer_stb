@@ -83,6 +83,8 @@ extern const uint3 threadIdx;
 #define AS_UINT4(addr) *((uint4*)(addr))
 #define AS_UL2(addr)   *((ulonglong2*)(addr))
 
+static __device__ __forceinline__ uint4 operator^ (uint4 a, uint4 b) { return make_uint4(a.x ^ b.x, a.y ^ b.y, a.z ^ b.z, a.w ^ b.w); }
+
 __device__ __forceinline__ uint64_t MAKE_ULONGLONG(uint32_t LO, uint32_t HI)
 {
 #if __CUDA_ARCH__ >= 130

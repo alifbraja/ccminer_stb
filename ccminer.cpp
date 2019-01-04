@@ -42,8 +42,8 @@
 
 #include "miner.h"
 #include "algos.h"
-#include "sia/sia-rpc.h"
-#include "crypto/xmr-rpc.h"
+
+
 #include "equi/equihash.h"
 
 #include <cuda_runtime.h>
@@ -717,10 +717,6 @@ static bool work_decode(const json_t *val, struct work *work)
 		data_size = 80;
 		adata_sz = data_size / 4;
 		break;
-	case ALGO_CRYPTOLIGHT:
-	case ALGO_CRYPTONIGHT:
-	case ALGO_WILDKECCAK:
-		return rpc2_job_decode(val, work);
 	default:
 		data_size = 128;
 		adata_sz = data_size / 4;
@@ -901,16 +897,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	bool stale_work = false;
 	int idnonce = work->submit_nonce_id;
 
-	if (pool->type & POOL_STRATUM && stratum.rpc2) {
-		struct work submit_work;
-		memcpy(&submit_work, work, sizeof(struct work));
-		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
-			if (rpc2_stratum_submit(pool, &submit_work))
-				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
-			stratum.job.shares_count++;
-		}
-		return true;
-	}
+
 
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
@@ -1089,9 +1076,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		else if (opt_algo == ALGO_PHI2 && use_roots) {
 			data_size = 144; adata_sz = 36;
 		}
-		else if (opt_algo == ALGO_SIA) {
-			return sia_submit(curl, pool, work);
-		}
+		
 
 		if (opt_algo != ALGO_HEAVY && opt_algo != ALGO_MJOLLNIR) {
 			for (int i = 0; i < adata_sz; i++)
@@ -1267,18 +1252,7 @@ static bool get_upstream_work(CURL *curl, struct work *work)
 
 	gettimeofday(&tv_start, NULL);
 
-	if (opt_algo == ALGO_SIA) {
-		char *sia_header = sia_getheader(curl, pool);
-		if (sia_header) {
-			rc = sia_work_decode(sia_header, work);
-			free(sia_header);
-		}
-		gettimeofday(&tv_end, NULL);
-		if (have_stratum || unlikely(work->pooln != cur_pooln)) {
-			return rc;
-		}
-		return rc;
-	}
+	
 
 	if (opt_debug_threads)
 		applog(LOG_DEBUG, "%s: want_longpoll=%d have_longpoll=%d",
@@ -1553,9 +1527,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 {
 	uchar merkle_root[64] = { 0 };
 	int i;
-
-	if (sctx->rpc2)
-		return rpc2_stratum_gen_work(sctx, work);
 
 	if (!sctx->job.job_id) {
 		// applog(LOG_WARNING, "stratum_gen_work: job not yet retrieved");
@@ -2112,11 +2083,7 @@ static void *miner_thread(void *userdata)
 			gpulog(LOG_DEBUG, thr_id, "no data");
 			continue;
 		}
-		if (opt_algo == ALGO_WILDKECCAK && !scratchpad_size) {
-			sleep(1);
-			if (!thr_id) pools[cur_pooln].wait_time += 1;
-			continue;
-		}
+	
 
 		/* conditional mining */
 		if (!wanna_mine(thr_id))
@@ -2360,218 +2327,11 @@ static void *miner_thread(void *userdata)
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 
-		case ALGO_ALLIUM:
-			rc = scanhash_allium(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BASTION:
-			rc = scanhash_bastion(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BLAKECOIN:
-			rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done, 8);
-			break;
-		case ALGO_BLAKE:
-			rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done, 14);
-			break;
-		case ALGO_BLAKE2S:
-			rc = scanhash_blake2s(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BMW:
-			rc = scanhash_bmw(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_C11:
-			rc = scanhash_c11(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_CRYPTOLIGHT:
-			rc = scanhash_cryptolight(thr_id, &work, max_nonce, &hashes_done, 1);
-			break;
-		case ALGO_CRYPTONIGHT:
-		{
-			int cn_variant = 0;
-			if (cryptonight_fork > 1 && ((unsigned char*)work.data)[0] >= cryptonight_fork)
-				cn_variant = ((unsigned char*)work.data)[0] - cryptonight_fork + 1;
-			rc = scanhash_cryptonight(thr_id, &work, max_nonce, &hashes_done, cn_variant);
-			break;
-		}
-		case ALGO_DECRED:
-			rc = scanhash_decred(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_DEEP:
-			rc = scanhash_deep(thr_id, &work, max_nonce, &hashes_done);
-			break;
+		
 		case ALGO_EQUIHASH:
 			rc = scanhash_verus(thr_id, &work, max_nonce, &hashes_done);
 			break;
-		case ALGO_FRESH:
-			rc = scanhash_fresh(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_FUGUE256:
-			rc = scanhash_fugue256(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_GROESTL:
-		case ALGO_DMD_GR:
-			rc = scanhash_groestlcoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_MYR_GR:
-			rc = scanhash_myriad(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_HMQ1725:
-			rc = scanhash_hmq17(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_HSR:
-			rc = scanhash_hsr(thr_id, &work, max_nonce, &hashes_done);
-			break;
-#ifdef WITH_HEAVY_ALGO
-		case ALGO_HEAVY:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
-			break;
-		case ALGO_MJOLLNIR:
-			rc = scanhash_heavy(thr_id, &work, max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
-			break;
-#endif
-		case ALGO_KECCAK:
-		case ALGO_KECCAKC:
-			rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_JACKPOT:
-			rc = scanhash_jackpot(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_JHA:
-			rc = scanhash_jha(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
-		case ALGO_LBRY:
-			rc = scanhash_lbry(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LUFFA:
-			rc = scanhash_luffa(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_QUARK:
-			rc = scanhash_quark(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_QUBIT:
-			rc = scanhash_qubit(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2:
-			rc = scanhash_lyra2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2v2:
-			rc = scanhash_lyra2v2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_LYRA2Z:
-			rc = scanhash_lyra2Z(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_NEOSCRYPT:
-			rc = scanhash_neoscrypt(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_NIST5:
-			rc = scanhash_nist5(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PENTABLAKE:
-			rc = scanhash_pentablake(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PHI:
-			rc = scanhash_phi(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_PHI2:
-			rc = scanhash_phi2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_POLYTIMOS:
-			rc = scanhash_polytimos(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SCRYPT:
-			rc = scanhash_scrypt(thr_id, &work, max_nonce, &hashes_done,
-				NULL, &tv_start, &tv_end);
-			break;
-		case ALGO_SCRYPT_JANE:
-			rc = scanhash_scrypt_jane(thr_id, &work, max_nonce, &hashes_done,
-				NULL, &tv_start, &tv_end);
-			break;
-		case ALGO_SKEIN:
-			rc = scanhash_skeincoin(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKEIN2:
-			rc = scanhash_skein2(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SKUNK:
-			rc = scanhash_skunk(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SHA256D:
-			rc = scanhash_sha256d(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SHA256T:
-			rc = scanhash_sha256t(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SIA:
-			rc = scanhash_sia(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SIB:
-			rc = scanhash_sib(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_SONOA:
-			rc = scanhash_sonoa(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_S3:
-			rc = scanhash_s3(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_VANILLA:
-			rc = scanhash_vanilla(thr_id, &work, max_nonce, &hashes_done, 8);
-			break;
-		case ALGO_VELTOR:
-			rc = scanhash_veltor(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_WHIRLCOIN:
-		case ALGO_WHIRLPOOL:
-			rc = scanhash_whirl(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		//case ALGO_WHIRLPOOLX:
-		//	rc = scanhash_whirlx(thr_id, &work, max_nonce, &hashes_done);
-		//	break;
-		case ALGO_WILDKECCAK:
-			rc = scanhash_wildkeccak(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_TIMETRAVEL:
-			rc = scanhash_timetravel(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_TRIBUS:
-			rc = scanhash_tribus(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_BITCORE:
-			rc = scanhash_bitcore(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X11EVO:
-			rc = scanhash_x11evo(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X11:
-			rc = scanhash_x11(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X12:
-			rc = scanhash_x12(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X13:
-			rc = scanhash_x13(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X14:
-			rc = scanhash_x14(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X15:
-			rc = scanhash_x15(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X16R:
-			rc = scanhash_x16r(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X16S:
-			rc = scanhash_x16s(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_X17:
-			rc = scanhash_x17(thr_id, &work, max_nonce, &hashes_done);
-			break;
-		case ALGO_ZR5:
-			rc = scanhash_zr5(thr_id, &work, max_nonce, &hashes_done);
-			break;
-
+		
 		default:
 			/* should never happen */
 			goto out;
@@ -2815,18 +2575,7 @@ longpoll_retry:
 		if (switchn != pool_switch_count)
 			goto need_reinit;
 
-		if (opt_algo == ALGO_SIA) {
-			char *sia_header = sia_getheader(curl, pool);
-			if (sia_header) {
-				pthread_mutex_lock(&g_work_lock);
-				if (sia_work_decode(sia_header, &g_work)) {
-					g_work_time = time(NULL);
-				}
-				free(sia_header);
-				pthread_mutex_unlock(&g_work_lock);
-			}
-			continue;
-		}
+		
 
 		val = json_rpc_longpoll(curl, lp_url, pool, rpc_req, &err);
 		if (have_stratum || switchn != pool_switch_count) {
@@ -3018,9 +2767,7 @@ wait_stratum_url:
 			}
 		}
 
-		if (stratum.rpc2) {
-			rpc2_stratum_thread_stuff(pool);
-		}
+		
 
 		if (switchn != pool_switch_count) goto pool_switched;
 
@@ -3255,7 +3002,7 @@ void parse_arg(int key, char *arg)
 		break;
 	}
 	case 'k':
-		opt_scratchpad_url = strdup(arg);
+		//opt_scratchpad_url = strdup(arg);
 		break;
 	case 'i':
 		d = atof(arg);
@@ -3959,8 +3706,11 @@ int main(int argc, char *argv[])
 #endif
 			CUDART_VERSION/1000, (CUDART_VERSION % 1000)/10, arch);
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
-		printf("  Include some kernels from alexis78, djm34, djEzo, tsiv and krnlx.\n\n");
+		printf("  Stripped out to do Verushash 2.0 by Monkins1010\n\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
+		printf("VRSC donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec (monkins1010)\n\n");
+		printf("***  Big thanks to Michael Toughtini of Verus ***\n");
+
 	}
 
 	rpc_user = strdup("");
@@ -4055,16 +3805,7 @@ int main(int argc, char *argv[])
 		opt_extranonce = false; // disable subscribe
 	}
 
-	if (opt_algo == ALGO_CRYPTONIGHT || opt_algo == ALGO_CRYPTOLIGHT) {
-		rpc2_init();
-		if (!opt_quiet) applog(LOG_INFO, "Using JSON-RPC 2.0");
-	}
 
-	if (opt_algo == ALGO_WILDKECCAK) {
-		rpc2_init();
-		if (!opt_quiet) applog(LOG_INFO, "Using JSON-RPC 2.0");
-		GetScratchpad();
-	}
 
 	flags = !opt_benchmark && strncmp(rpc_url, "https:", 6)
 	      ? (CURL_GLOBAL_ALL & ~CURL_GLOBAL_SSL)
