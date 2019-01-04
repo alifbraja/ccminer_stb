@@ -174,7 +174,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 		init[thr_id] = true;
 	}
 
-	uint32_t _ALIGN(64) vhash[8];
+	uint32_t _ALIGN(64) vhash[8] = {0};
     work->valid_nonces = 0;
 
 
