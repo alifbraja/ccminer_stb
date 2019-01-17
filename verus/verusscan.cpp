@@ -124,13 +124,13 @@ extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t 
 
 //	GenNewCLKey(curBuf, data_key[thr_id]);  //data_key a global static 2D array data_key[16][8832];
 	((uint32_t*)&curBuf[0])[8] = nonce;
-	uint64_t intermediate = verusclhash_port(data_key[thr_id],curBuf, VERUS_KEY_SIZE);
+	uint64_t intermediate = verusclhash_port(data_key[thr_id],curBuf, 8191);
 		//FillExtra
 	memcpy(curBuf + 47, &intermediate, 8);
 	memcpy(curBuf + 55, &intermediate, 8);
 	memcpy(curBuf + 63, &intermediate, 1);
-
-	haraka512_port_keyed(hash, curBuf, data_key[thr_id] + (intermediate & mask));
+	intermediate &= 511;
+	haraka512_port_keyed(hash, curBuf, data_key[thr_id] + intermediate);
 }
 
 
@@ -197,7 +197,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 		{
 			const uint32_t Htarg = ptarget[7];
 			
-		//	Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, work->nonces[0], thr_id);
+			Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, work->nonces[0], thr_id);
 
 
 			if (vhash[7] <= Htarg && fulltest(vhash, ptarget))
