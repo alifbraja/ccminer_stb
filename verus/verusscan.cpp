@@ -42,7 +42,7 @@ static bool init[MAX_GPUS] = { 0 };
 static u128 data_key[MAX_GPUS][VERUS_KEY_SIZE128] = { 0 }; // 552 required
 static __thread uint32_t throughput = 0;
 extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
-extern void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id);
+extern void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput);
 extern void verus_init(int thr_id, uint32_t throughput);
 
 
@@ -186,11 +186,11 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	//Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, 0, thr_id);
 
 	gettimeofday(&tv_start, NULL);
-	verus_setBlock(blockhash_half, work->target, (uint8_t*)data_key[thr_id], thr_id); //set data to gpu kernel
+	verus_setBlock(blockhash_half, work->target, (uint8_t*)data_key[thr_id], thr_id, throughput); //set data to gpu kernel
 
 	do {
 
-		*hashes_done = nonce_buf + throughput;
+		*hashes_done = nonce_buf + throughput  ;
 		verus_hash(thr_id, throughput, nonce_buf, work->nonces);
 
 		if (work->nonces[0] != UINT32_MAX)
@@ -236,7 +236,7 @@ out:
 	solps = (double)nonce_buf / secs;
 	//gpulog(LOG_INFO, thr_id, "%d k/hashes in %.2f s (%.2f MH/s)", nonce_buf / 1000, secs, solps / 1000000);
 	// H/s
-
+	//cudaProfilerStop();
 	//*hashes_done = first_nonce;
 	pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
 	//free(localkey);
