@@ -21,7 +21,8 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c hefty1.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp \
 			  api.cpp hashlog.cpp stats.cpp sysinfos.cpp \
-			  equi/equi-stratum.cpp verus/verusscan.cpp verus/haraka.c verus/haraka.h
+			  equi/equi-stratum.cpp verus/verusscan.cpp verus/haraka.c verus/haraka.h \
+			  verus/haraka_portable.c verus/verus_clhash.cpp verus/clhash_portable.cpp
 
 
 
@@ -38,7 +39,6 @@ ccminer_CPPFLAGS += -I/usr/local/llvm/lib/clang/4.0.0/include
 ccminer_LDFLAGS += -L/usr/local/llvm/lib
 ccminer_LDADD += -lomp
 endif
-
 
 
 
