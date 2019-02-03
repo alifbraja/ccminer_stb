@@ -175,15 +175,10 @@ extern u128 rc[40];
   s2 = _mm_aesenc_si128(s2, rc[rci + 6]); \
   s3 = _mm_aesenc_si128(s3, rc[rci + 7]); \
 
-#define AES4LAST(s0, s1, s2, s3, rci) \
-  s0 = _mm_aesenc_si128(s0, rc[rci]); \
-  s1 = _mm_aesenc_si128(s1, rc[rci + 1]); \
+#define AES4_LAST(s0, s1, s2, s3, rci) \
   s2 = _mm_aesenc_si128(s2, rc[rci + 2]); \
-  s3 = _mm_aesenc_si128(s3, rc[rci + 3]); \
-  s0 = _mm_aesenc_si128(s0, rc[rci + 4]); \
-  s1 = _mm_aesenc_si128(s1, rc[rci + 5]); \
-  s2 = _mm_aesenc_si128(s2, rc[rci + 6]); \
-  s3 = _mm_aesenc_si128(s3, rc[rci + 7]); \
+  s2 = _mm_aesenc_si128(s2, rc[rci + 6]); 
+
 
 #define AES4_zero(s0, s1, s2, s3, rci) \
   s0 = _mm_aesenc_si128(s0, rc0[rci]); \
@@ -220,19 +215,10 @@ extern u128 rc[40];
   s2 = _mm_unpackhi_epi32(s1, tmp); \
   s1 = _mm_unpacklo_epi32(s1, tmp);
 
-#define MIX4LAST(s0, s1, s2, s3) \
-  s0 = _mm_unpackhi_epi32(s0, s1); \
-  s2 = _mm_unpackhi_epi32(s2, s3); \
-  s3 = _mm_unpacklo_epi32(s0, s2); 
-
-#define MIX4_LASTBUT1(s0, s1, s2, s3) \
+#define MIX4_LAST(s0, s1, s2, s3) \
   tmp  = _mm_unpacklo_epi32(s0, s1); \
   s1 = _mm_unpacklo_epi32(s2, s3); \
   s2 = _mm_unpackhi_epi32(s1, tmp); 
-
-#define AES4_LAST(s3, rci) \
-  _mm_aesenc_si128(s3, rc[rci + 2]); \
-  _mm_aesenc_si128(s3, rc[rci + 6]); \
 
 #define TRUNCSTORE(out, s0, s1, s2, s3) \
   *(u64*)(out) = *(((u64*)&s0 + 1)); \

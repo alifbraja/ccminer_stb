@@ -24,7 +24,7 @@
 
 #include <assert.h>
 #include <string.h>
-#include "immintrin.h"
+//#include <intrin.h>
 //#include "cpu_verushash.hpp"
 
 #ifdef _WIN32
@@ -76,7 +76,7 @@ static inline uint64_t precompReduction64( __m128i A) {
 }
 
 // verus intermediate hash extra
-static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex)
+static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict randomsource, const __m128i *  __restrict buf, uint64_t keyMask, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex)
 {
     __m128i const *pbuf;
 
@@ -101,6 +101,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource
     // the random buffer must have at least 32 16 byte dwords after the keymask to work with this
     // algorithm. we take the value from the last element inside the keyMask + 2, as that will never
     // be used to xor into the accumulator before it is hashed with other values first
+
 	  for (uint64_t i = 0; i < 32; i++)
     {
 		  
@@ -402,7 +403,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource
 
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
-uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex) {
+uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *  __restrict fixrand, uint32_t * __restrict fixrandex) {
 	const __m128i lazy = _mm_cvtsi32_si128( 0x00010000);
 	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, (const __m128i *)buf, keyMask, fixrand, fixrandex);
     acc = _mm_xor_si128(acc, lazy);
@@ -430,9 +431,9 @@ inline void haraka512_keyed_local(unsigned char *out, const unsigned char *in, c
 
   AES4(s[0], s[1], s[2], s[3], 24);
 
-  MIX4_LASTBUT1(s[0], s[1], s[2], s[3]);
+ //MIX4_LASTBUT1(s[0], s[1], s[2], s[3]);
 
-  AES4_LAST(s[2], 32);
+ // AES4_LAST(s[2], 32);
 
 //  MIX4(s[0], s[1], s[2], s[3]);
 
@@ -441,7 +442,7 @@ inline void haraka512_keyed_local(unsigned char *out, const unsigned char *in, c
 
  // s[0] = _mm_xor_si128(s[0], LOAD(in));
  // s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
-  s[2] = _mm_xor_si128(s[2], LOAD(in + 46));
+ // s[2] = _mm_xor_si128(s[2], LOAD(in + 46));
  // s[3] = _mm_xor_si128(s[3], LOAD(in + 48));
 
  // TRUNCSTORE(out, s[0], s[1], s[2], s[3]);

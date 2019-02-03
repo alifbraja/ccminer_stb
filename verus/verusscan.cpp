@@ -129,7 +129,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 
 extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t nonce,
-	u128 *data_key, uint8_t *gpu_init, uint32_t *fixrand, uint32_t *fixrandex, u128 *data_key_master)
+	u128 * __restrict data_key, uint8_t *gpu_init, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex, u128 * __restrict data_key_master)
 {
 	uint64_t mask = VERUS_KEY_SIZE128; //552
 	if (!gpu_init[0]) {
@@ -203,7 +203,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 		*hashes_done = nonce_buf + throughput;
 		Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, nonce_buf, data_key, &gpuinit, fixrand, fixrandex, data_key_master);
 
-		if (vhash[7] <= Htarg && fulltest(vhash, ptarget))
+		if (vhash[7] <= Htarg )
 		{
 			*((uint32_t *)full_data + 368) = nonce_buf;
 			work->valid_nonces++;
@@ -235,8 +235,8 @@ out:
 	solps = (double)nonce_buf / secs;
 
 	pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-	free(data_key);
-	free(data_key_master);
+	//free(data_key);
+	//free(data_key_master);
 	return work->valid_nonces;
 }
 
