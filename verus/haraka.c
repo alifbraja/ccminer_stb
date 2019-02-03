@@ -27,7 +27,7 @@ Optimized Implementations for Haraka256 and Haraka512
 #include <stdio.h>
 #include "haraka.h"
 
-static u128 rc[40];
+u128 rc[40];
 u128 rc0[40] = {0};
 
 void load_constants() {

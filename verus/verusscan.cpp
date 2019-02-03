@@ -170,9 +170,9 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint8_t gpuinit = 0;
 	struct timeval tv_start, tv_end, diff;
 	double secs, solps;
-	u128 *data_key = (u128 *)_aligned_malloc(VERUS_KEY_SIZE, 16);
+	u128 *data_key = (u128 *)malloc(VERUS_KEY_SIZE);
 
-	u128 *data_key_master = (u128 *)_aligned_malloc(VERUS_KEY_SIZE, 16);
+	u128 *data_key_master = (u128 *)malloc(VERUS_KEY_SIZE);
 	//u128 data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
 	//u128 data_key_master[VERUS_KEY_SIZE128] = { 0 };
 	uint32_t nonce_buf = 0;
@@ -235,8 +235,8 @@ out:
 	solps = (double)nonce_buf / secs;
 
 	pdata[NONCE_OFT] = endiandata[NONCE_OFT] + 1;
-	//free(data_key);
-	//free(data_key_master);
+	free(data_key);
+	free(data_key_master);
 	return work->valid_nonces;
 }
 
