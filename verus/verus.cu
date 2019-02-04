@@ -28,7 +28,7 @@ typedef uint4 uint128m;
 
 #define AES4_LAST(s3, rci) \
   aesenc((unsigned char *)&s3, &rc[rci + 2],sharedMemory1); \
-  aesenc((unsigned char *)&s3, &rc[rci + 6], sharedMemory1); \
+  aesenc_last((unsigned char *)&s3, &rc[rci + 6], sharedMemory1); \
 
 
 #define TRUNCSTORE(out, s4) \
@@ -223,7 +223,7 @@ __device__ __forceinline__  uint128m _mm_clmulepi64_si128_emu(uint128m ai, uint1
 	return r;
 }
 
-__device__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
+__device__  __forceinline__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
 {
 	uint64_t a = ((uint64_t*)&ai)[1];
 
@@ -308,6 +308,52 @@ __device__  __forceinline__ uint128m _mm_unpackhi_epi32_emu(uint128m a, uint128m
 
 	return b;
 }
+
+__device__  void aesenc_last(unsigned char * __restrict__ s, const uint128m * __restrict__ rk, uint32_t * __restrict__ sharedMemory1)
+{
+
+	uint32_t  v[4];
+
+
+	((uint8_t*)&v[0])[0] = ((uint8_t*)&sharedMemory1[0])[s[0]];
+	((uint8_t*)&v[0])[7] = ((uint8_t*)&sharedMemory1[0])[s[1]];
+	((uint8_t*)&v[0])[10] = ((uint8_t*)&sharedMemory1[0])[s[2]];
+	((uint8_t*)&v[0])[13] = ((uint8_t*)&sharedMemory1[0])[s[3]];
+	((uint8_t*)&v[0])[1] = ((uint8_t*)&sharedMemory1[0])[s[4]];
+	((uint8_t*)&v[0])[4] = ((uint8_t*)&sharedMemory1[0])[s[5]];
+	((uint8_t*)&v[0])[11] = ((uint8_t*)&sharedMemory1[0])[s[6]];
+	((uint8_t*)&v[0])[14] = ((uint8_t*)&sharedMemory1[0])[s[7]];
+	((uint8_t*)&v[0])[2] = ((uint8_t*)&sharedMemory1[0])[s[8]];
+	((uint8_t*)&v[0])[5] = ((uint8_t*)&sharedMemory1[0])[s[9]];
+	((uint8_t*)&v[0])[8] = ((uint8_t*)&sharedMemory1[0])[s[10]];
+	((uint8_t*)&v[0])[15] = ((uint8_t*)&sharedMemory1[0])[s[11]];
+	((uint8_t*)&v[0])[3] = ((uint8_t*)&sharedMemory1[0])[s[12]];
+	((uint8_t*)&v[0])[6] = ((uint8_t*)&sharedMemory1[0])[s[13]];
+	((uint8_t*)&v[0])[9] = ((uint8_t*)&sharedMemory1[0])[s[14]];
+	((uint8_t*)&v[0])[12] = ((uint8_t*)&sharedMemory1[0])[s[15]];
+
+	uint32_t t = v[0];
+	uint32_t w = v[0] ^ v[1];
+	uint32_t u; // = w ^ v[2] ^ v[3];
+	u = xor3x(w, v[2], v[3]);
+	v[0] = xor3x(v[0], u, XT4(w));
+	v[1] = xor3x(v[1], u, XT4(v[1] ^ v[2]));
+	v[2] = xor3x(v[2], u, XT4(v[2] ^ v[3]));
+	v[3] = xor3x(v[3], u, XT4(v[3] ^ t));
+
+
+
+	s[8] = ((uint8_t*)&v[0])[2];
+	s[9] = ((uint8_t*)&v[0])[6];
+	s[10] = ((uint8_t*)&v[0])[10];
+	s[11] = ((uint8_t*)&v[0])[14];
+
+
+	((uint128m*)&s[0])[0].z = ((uint32_t*)&s[0])[2] ^ rk[0].z;
+
+	
+}
+
 __device__   __forceinline__ void aesenc(unsigned char * __restrict__ s, const uint128m * __restrict__ rk, uint32_t * __restrict__ sharedMemory1)
 {
 //#define XT(x) (((x) << 1) ^ (((x) >> 7) ? 0x1b : 0))
@@ -604,11 +650,11 @@ __device__  __forceinline__ uint128m _mm_set_epi64x_emu(uint64_t hi, uint64_t lo
 	((uint64_t *)&result)[1] = hi;
 	return result;
 }
-__device__  uint128m _mm_shuffle_epi8_emu(uint128m b)
+__device__ __forceinline__ uint128m _mm_shuffle_epi8_emu(uint128m b)
 {
 	uint128m result;
 	uint128m M = { 0x2d361b00,0x415a776c,0xf5eec3d8,0x9982afb4 };
-//#pragma unroll
+#pragma unroll
 	for (int i = 0; i < 16; i++)
 	{
 		if (((uint8_t *)&b)[i] & 0x80)
@@ -645,7 +691,7 @@ __device__  uint128m _mm_mulhrs_epi16_emu(uint128m _a, uint128m _b)
 
 	int32_t po;
 	int16_t *a = (int16_t*)&_a, *b = (int16_t*)&_b;
-#pragma unroll 8
+#pragma nounroll
 	for (int i = 0; i < 8; i++)
 	{
 		asm("mad.lo.s32 %0, %1, %2, 16384; ": "=r"(po) : "r"((int32_t)a[i]), "r"((int32_t)b[i]));
@@ -715,7 +761,7 @@ __device__  __forceinline__ void case_4(uint128m &prand, uint128m &prandex, cons
 	prand = tempb2;
 }
 
-__device__ __forceinline__  void case_8(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
+__device__  void case_8(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
 	uint64_t selector, uint128m &acc)
 {
 	const uint128m temp1 = prandex;
@@ -787,12 +833,13 @@ __device__ void case_0c(uint128m &prand, uint128m &prandex, const  uint128m *pbu
 __device__ void case_10(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
 	uint64_t selector, uint128m &acc, uint128m *randomsource, uint32_t prand_idx, uint32_t *sharedMemory1)
 {			// a few AES operations
-			//uint128m rc[12];
+			uint128m rc[12];
 
-			//rc[0] = prand; 
+			rc[0] = prand; 
 
-	uint128m *rc = &randomsource[prand_idx];
-	/*	rc[2] = randomsource[prand_idx + 2];
+	//uint128m *rc = &randomsource[prand_idx];
+			rc[1] = randomsource[prand_idx + 1];
+		rc[2] = randomsource[prand_idx + 2];
 	rc[3] = randomsource[prand_idx + 3];
 	rc[4] = randomsource[prand_idx + 4];
 	rc[5] = randomsource[prand_idx + 5];
@@ -801,7 +848,7 @@ __device__ void case_10(uint128m &prand, uint128m &prandex, const  uint128m *pbu
 	rc[8] = randomsource[prand_idx + 8];
 	rc[9] = randomsource[prand_idx + 9];
 	rc[10] = randomsource[prand_idx + 10];
-	rc[11] = randomsource[prand_idx + 11];8*/
+	rc[11] = randomsource[prand_idx + 11];
 //	uint128m tmp;
 
 	uint128m temp1 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
@@ -927,11 +974,11 @@ __device__  __forceinline__ void case_1c(uint128m &prand, uint128m &prandex, con
 
 
 __device__ uint128m __verusclmulwithoutreduction64alignedrepeatgpu(uint128m * __restrict__ randomsource, const  uint128m *  __restrict__  buf ,
-	 uint32_t *  __restrict__ sharedMemory1, uint16_t *  __restrict__ d_fix_r, uint16_t *  __restrict__ d_fix_rex)
+	 uint32_t *  __restrict__ sharedMemory1, uint32_t *  __restrict__ d_fix_r, uint32_t *  __restrict__ d_fix_rex)
 {
     uint128m const *pbuf;
 	//keyMask >>= 4;
-	uint128m acc = randomsource[513];
+	uint128m acc = vkey[513];
 	
 #ifdef GPU_DEBUGGY
 	if (nounce == 0)
@@ -956,56 +1003,30 @@ __device__ uint128m __verusclmulwithoutreduction64alignedrepeatgpu(uint128m * __
 	uint64_t selector;
 	uint128m prand;
 	uint128m prandex;
+	prand_idx = ((acc.x >> 5) & 511);
+	prandex_idx = ((acc.y) & 511);
 
+	prand = vkey[prand_idx];
+	prandex = vkey[prandex_idx];
+//#pragma unroll
 	for (uint8_t i = 0; i < 32; i++)
 	{
 		
 		selector = _mm_cvtsi128_si64_emu(acc);
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
 
+		if (i > 0) {
 		
-		prand_idx = ((selector >> 5) & 511);
-		prandex_idx = ((selector >> 32) & 511);
 		// get two random locations in the key, which will be mutated and swapped
-		
-		prand = randomsource[prand_idx];
-		prandex = randomsource[prandex_idx];
-
-	//	save_rand[i] = ((selector >> 5) & keyMask);
-	//	save_randex[i] = ((selector >> 32) & keyMask);
-
-		// select random start and order of pbuf processing
-		pbuf = buf + (selector & 3);
-		uint8_t case_v;
-		case_v = selector &  0x1cu;
-#ifdef GPU_DEBUGu
-		uint64_t egg, nog, salad;
-		if (nounce == 0)
-		{
-			printf("[GPU]*****LOOP[%d]**********\n",i);
-			egg = selector & 0x03u;
-			nog = ((selector >> 32) & keyMask);
-			salad = ((selector >> 5) & keyMask);
-			printf("[GPU]selector: %llx\n case: %llx selector &3: ", selector, case_v);
-			printf("%llx \n", egg);
-			printf("[GPU]((selector >> 32) & keyMask) %d",nog);
-			printf("[GPU]((selector >> 5) & keyMask) %d", salad);
-			printf("\nacc     : ");
-			printf("%016llx%016llx", ((uint64_t*)&acc)[0], ((uint64_t*)&acc)[1]);
-			printf("\n");
-
-			printf("[GPU]prand   : ");
-			//for (int e = 0; e < 4; e++)
-			printf("%016llx%016llx", ((uint64_t*)&prand)[0], ((uint64_t*)&prand)[1]);
-			printf("\n");
-			printf("[GPU]prandex : ");
-			//for (int e = 0; e < 16; e++)
-			printf("%016llx%016llx", ((uint64_t*)&prandex)[0], ((uint64_t*)&prandex)[1]);
-			printf("\n");
-
-
+			prand = randomsource[prand_idx];
+			prandex = randomsource[prandex_idx];
 		}
 
-#endif
+		pbuf = buf + (acc.x & 3);
+		uint8_t case_v;
+		case_v = selector &  0x1cu;
+
 		
 		if(case_v == 0)
 		{
@@ -1025,17 +1046,21 @@ __device__ uint128m __verusclmulwithoutreduction64alignedrepeatgpu(uint128m * __
 			case_0c(prand, prandex, pbuf, selector, acc);
 
 		}
+			
 		if (case_v == 0x10)
 		{
-			case_10(prand, prandex, pbuf, selector, acc,randomsource, prand_idx, sharedMemory1);
+			case_10(prand, prandex, pbuf, selector, acc, randomsource, prand_idx, sharedMemory1);
 
 
 		}
-		if(case_v == 0x14)
+		
+		if (case_v == 0x14)
 		{
 			case_14(prand, prandex, pbuf, selector, acc, randomsource, prand_idx, sharedMemory1);
 
 		}
+
+
 		if(case_v == 0x18)
 		{
 			case_18(prand, prandex, pbuf, selector, acc);
@@ -1056,7 +1081,7 @@ __device__ uint128m __verusclmulwithoutreduction64alignedrepeatgpu(uint128m * __
 }
 
 
-__device__   __forceinline__  uint32_t haraka512_port_keyed2222(const unsigned char * __restrict__  in, uint128m * __restrict__  rc, uint32_t * __restrict__  sharedMemory1, uint32_t nonce)
+__device__   __forceinline__  uint32_t haraka512_port_keyed2222(const unsigned char * __restrict__  in, uint128m * __restrict__  rc, uint32_t * __restrict__  sharedMemory1)
 {
 	uint128m s1,s2,s3,s4, tmp;
 
@@ -1076,6 +1101,7 @@ __device__   __forceinline__  uint32_t haraka512_port_keyed2222(const unsigned c
 
 	AES4(s1, s2, s3, s4, 24);
 	MIX4_LASTBUT1(s1, s2, s3, s4);
+
 
 	AES4_LAST(s3, 32);
 
@@ -1108,13 +1134,14 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 	uint128m * __restrict__ d_key_input, uint128m * __restrict__ d_mid, uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
-	//uint128m mid; // , biddy[VERUS_KEY_SIZE128];
+	uint128m mid; // , biddy[VERUS_KEY_SIZE128];
 	uint128m s[4];
+
 	const uint32_t nounce = startNonce + thread;
 
 	__shared__ uint32_t sharedMemory1[THREADS];
-	__shared__ uint16_t sharedrand[32 * THREADS];
-	__shared__ uint16_t sharedrandex[32 * THREADS];
+	__shared__ uint32_t sharedrand[32 * THREADS];
+	__shared__ uint32_t sharedrandex[32 * THREADS];
 
 	//uint32_t save_rand[32] = { 0 };
 	//uint32_t save_randex[32] = { 0 };
@@ -1127,14 +1154,14 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 
 	sharedMemory1[threadIdx.x] = sbox[threadIdx.x];// copy sbox to shared mem
 
+	__syncthreads();
 	((uint32_t *)&s)[8] = nounce;
 
-	static const uint128m lazy = { 0x00010000, 0x00000000, 0x00000000, 0x00000000 };
+	
 
-	__syncthreads();
-	s[0] = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1, sharedrand + (threadIdx.x * 32), sharedrandex + (threadIdx.x * 32));
-
-	d_mid[thread] = _mm_xor_si128_emu(s[0], lazy);
+	mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1, sharedrand + (threadIdx.x * 32), sharedrandex + (threadIdx.x * 32));
+	mid.x  ^= 0x00010000;
+	d_mid[thread] = mid;
 
 #pragma unroll
 	for (int i = 0; i < 32; i++)
@@ -1162,7 +1189,7 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 		s[2] = blockhash_half[2];
 		s[3] = blockhash_half[3];
 		__syncthreads();
-//	acc = precompReduction64(wizz);
+
 	((uint32_t *)&s)[8] = nounce;
 	memcpy(((uint8_t*)&s) + 47, &acc, 8);
 	memcpy(((uint8_t*)&s) + 55, &acc, 8);
@@ -1171,7 +1198,7 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 	acc &= 511;
 	
 	//haraka512_port_keyed((unsigned char*)hash, (const unsigned char*)s, (const unsigned char*)(biddy + mask), sharedMemory1, nounce);
-	hash = haraka512_port_keyed2222((const unsigned char*)s, (&d_key_input[VERUS_KEY_SIZE128 * thread] + acc), sharedMemory1,nounce);
+	hash = haraka512_port_keyed2222((const unsigned char*)s, (&d_key_input[VERUS_KEY_SIZE128 * thread] + acc), sharedMemory1);
 
 	if (hash < ptarget[7]) { 
 		
