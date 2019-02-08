@@ -154,7 +154,7 @@ extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t 
 }
 #ifdef _WIN32
 
-#define posix_memalign(p, a, s) (((*(p)) = _aligned_malloc((s), (a))), *(p) ?0 :errno)
+#define posix_memalign(p, a, s) (((*(p)) = (u128*) _aligned_malloc((s), (a))), *(p) ?0 :errno)
 #endif
 
 extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
@@ -170,10 +170,13 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint8_t gpuinit = 0;
 	struct timeval tv_start, tv_end, diff;
 	double secs, solps;
-	u128 *data_key = (u128 *)malloc(VERUS_KEY_SIZE);
+	u128 *data_key = NULL;
+	posix_memalign((void**)&data_key, sizeof(__m256i), VERUS_KEY_SIZE);
 
-	u128 *data_key_master = (u128 *)malloc(VERUS_KEY_SIZE);
-	//u128 data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
+	//u128 *data_key_master = NULL;
+	//posix_memalign((void**)&data_key_master, sizeof(__m256i), VERUS_KEY_SIZE);
+	u128 _ALIGN(16) data_key_master[VERUS_KEY_SIZE];
+  //u128 data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
 	//u128 data_key_master[VERUS_KEY_SIZE128] = { 0 };
 	uint32_t nonce_buf = 0;
 	uint32_t fixrand[32];
