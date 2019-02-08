@@ -70,12 +70,14 @@ extern "C" void GenNewCLKey(unsigned char *seedBytes32, u128 *keyback)
 	}
 }
 
-extern "C" void FixKey(uint32_t *fixrand, uint32_t *fixrandex, u128 *keyback, u128 *keyback_master)
+extern "C" void FixKey(uint32_t *fixrand, uint32_t *fixrandex, u128 *keyback,
+	u128 * g_prand, u128 *g_prandex)
 {
-	for (int i = 0; i < 32; i++)
+	u128 buf1, buf2;
+	for (int i = 31; i > -1; i--)
 	{
-		keyback[fixrand[i]] = keyback_master[fixrand[i]];
-		keyback[fixrandex[i]] = keyback_master[fixrandex[i]];
+		keyback[fixrandex[i]] = g_prandex[i];
+		keyback[fixrand[i]] = g_prand[i];
 	}
 
 }
@@ -128,29 +130,24 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 
 
-extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t nonce,
-	u128 * __restrict data_key, uint8_t *gpu_init, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex, u128 * __restrict data_key_master)
+extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t nonce, 
+	u128 *data_key, uint8_t *gpu_init, uint32_t *fixrand, uint32_t *fixrandex, u128 *g_prand, u128 *g_prandex)
 {
-	uint64_t mask = VERUS_KEY_SIZE128; //552
-	if (!gpu_init[0]) {
-		GenNewCLKey(curBuf, data_key);  //data_key a global static 2D array data_key[16][8832];
-		memcpy(data_key_master, data_key, VERUS_KEY_SIZE);
-		gpu_init[0] = 1;
+	//uint64_t mask = VERUS_KEY_SIZE128; //552
 
-	}
 	memcpy(curBuf + 47, curBuf, 16);
 	memcpy(curBuf + 63, curBuf, 1);
 	//	FillExtra((u128 *)curBuf);
-
+	
 	((uint32_t*)&curBuf[0])[8] = nonce;
-	uint64_t intermediate = verusclhash(data_key, curBuf, 8191, fixrand, fixrandex);
-	//FillExtra
+	uint64_t intermediate = verusclhash(data_key,curBuf, 8191, fixrand, fixrandex, g_prand, g_prandex);
+		//FillExtra
 	memcpy(curBuf + 47, &intermediate, 8);
 	memcpy(curBuf + 55, &intermediate, 8);
 	memcpy(curBuf + 63, &intermediate, 1);
 	intermediate &= 511;
 	haraka512_keyed(hash, curBuf, data_key + intermediate);
-	FixKey(fixrand, fixrandex, data_key, data_key_master);
+	FixKey(fixrand, fixrandex, data_key, g_prand, g_prandex);
 }
 #ifdef _WIN32
 
@@ -175,7 +172,8 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 
 	//u128 *data_key_master = NULL;
 	//posix_memalign((void**)&data_key_master, sizeof(__m256i), VERUS_KEY_SIZE);
-	u128 _ALIGN(16) data_key_master[VERUS_KEY_SIZE];
+		u128 data_key_prand[32];
+	u128 data_key_prandex[32];
   //u128 data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
 	//u128 data_key_master[VERUS_KEY_SIZE128] = { 0 };
 	uint32_t nonce_buf = 0;
@@ -204,7 +202,8 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	do {
 
 		*hashes_done = nonce_buf + throughput;
-		Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, nonce_buf, data_key, &gpuinit, fixrand, fixrandex, data_key_master);
+Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, nonce_buf, data_key, 
+				&gpuinit, fixrand, fixrandex , data_key_prand, data_key_prandex);
 
 		if (vhash[7] <= Htarg )
 		{

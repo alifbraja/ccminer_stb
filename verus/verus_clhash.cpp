@@ -62,7 +62,7 @@ static inline __m128i lazyLengthHash(uint64_t keylength, uint64_t length) {
 static inline __m128i precompReduction64_si128( __m128i A) {
 
     //const __m128i C = _mm_set_epi64x(1U,(1U<<4)+(1U<<3)+(1U<<1)+(1U<<0)); // C is the irreducible poly. (64,4,3,1,0)
-    const __m128i C = _mm_cvtsi32_si128(27);
+    const __m128i C = _mm_cvtsi64_si128((1U<<4)+(1U<<3)+(1U<<1)+(1U<<0));
     __m128i Q2 = _mm_clmulepi64_si128( A, C, 0x01);
     __m128i Q3 = _mm_shuffle_epi8(_mm_setr_epi8(0, 27, 54, 45, 108, 119, 90, 65, (char)216, (char)195, (char)238, (char)245, (char)180, (char)175, (char)130, (char)153),
                                   _mm_srli_si128(Q2,8));
@@ -76,7 +76,8 @@ static inline uint64_t precompReduction64( __m128i A) {
 }
 
 // verus intermediate hash extra
-static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict randomsource, const __m128i *  __restrict buf, uint64_t keyMask, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex)
+static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask, 
+	uint32_t *fixrand, uint32_t *fixrandex, u128 *g_prand, u128 *g_prandex)
 {
     __m128i const *pbuf;
 
@@ -84,24 +85,10 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
     keyMask >>= 4;
 	
 	__m128i acc = _mm_load_si128(randomsource + (keyMask + 2));
-#ifdef VERUSHASHDEBUG
-	printf("[CPU]BUF ito verusclmulithout C++    : ");
-	for (int i = 0; i < 64; i++)
-		printf("%02x", ((uint8_t*)buf)[i]);
-	printf("\n");
-	printf("[CPU]KEy ito verusclmulithout C++    : ");
-	for (int i = 0; i < 64; i++)
-		printf("%02x", ((uint8_t*)&randomsource[0])[i]);
-	printf("\n");
-	printf("[CPU]ACC ito verusclmulithout C++    : ");
-	for (int i = 0; i < 16; i++)
-		printf("%02x", ((uint8_t*)&acc)[i]);
-	printf("\n");
-#endif
+
     // the random buffer must have at least 32 16 byte dwords after the keymask to work with this
     // algorithm. we take the value from the last element inside the keyMask + 2, as that will never
     // be used to xor into the accumulator before it is hashed with other values first
-
 	  for (uint64_t i = 0; i < 32; i++)
     {
 		  
@@ -115,35 +102,14 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
 	pbuf = buf + (selector & 3);
 	uint32_t prand_idx = (selector >> 5) & keyMask;
 	uint32_t prandex_idx = (selector >>32) & keyMask;
-  
-#ifdef VERUSHASHDEBUG
-		uint64_t case_v;
-		case_v = selector & 0x1cu;
-		uint64_t egg, nog, salad;
-			printf("[CPU]*****LOOP[%d]**********\n", i);
-			egg = selector & 0x03u;
-			nog = ((selector >> 32) & keyMask);
-			salad = ((selector >> 5) & keyMask);
-			printf("[CPU]selector: %llx\n case: %llx selector &3: ", selector, case_v);
-			printf("%llx \n", egg);
-			printf("[CPU]((selector >> 32) & keyMask) %d", nog);
-			printf("[CPU]((selector >> 5) & keyMask) %d", salad);
-			printf("\nacc     : ");
-			printf("%016llx%016llx", ((uint64_t*)&acc)[0], ((uint64_t*)&acc)[1]);
-			printf("\n");
+	g_prand[i] = prand[0];
+	g_prandex[i] = prandex[0];
+	fixrand[i] = prand_idx;
+	fixrandex[i] = prandex_idx;
 
-			printf("[CPU]prand   : ");
-			//for (int e = 0; e < 4; e++)
-			printf("%016llx%016llx", ((uint64_t*)prand)[0], ((uint64_t*)prand)[1]);
-			printf("\n");
-			printf("[CPU]prandex : ");
-			//for (int e = 0; e < 16; e++)
-			printf("%016llx%016llx", ((uint64_t*)prandex)[0], ((uint64_t*)prandex)[1]);
-			printf("\n");
-
-#endif
         switch (selector & 0x1c)
         {
+
             case 0:
             {
                 const __m128i temp1 = _mm_load_si128(prandex);
@@ -393,9 +359,9 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
                 break;
             }
         }
+	
 
-		fixrand[i] = prand_idx;
-		fixrandex[i] = prandex_idx;
+		
     }
 
     return acc;
@@ -403,10 +369,10 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
 
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
-uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *  __restrict fixrand, uint32_t * __restrict fixrandex) {
-	const __m128i lazy = _mm_cvtsi32_si128( 0x00010000);
-	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, (const __m128i *)buf, keyMask, fixrand, fixrandex);
-    acc = _mm_xor_si128(acc, lazy);
+uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex,
+	u128 *g_prand, u128 *g_prandex) {
+    __m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, (const __m128i *)buf, keyMask, fixrand, fixrandex, g_prand, g_prandex);
+    acc = _mm_xor_si128(acc, lazyLengthHash(1024, 64));
 
 
     return precompReduction64(acc);
@@ -430,20 +396,15 @@ inline void haraka512_keyed_local(unsigned char *out, const unsigned char *in, c
   MIX4(s[0], s[1], s[2], s[3]);
 
   AES4(s[0], s[1], s[2], s[3], 24);
+  MIX4(s[0], s[1], s[2], s[3]);
 
- //MIX4_LASTBUT1(s[0], s[1], s[2], s[3]);
+  AES4(s[0], s[1], s[2], s[3], 32);
+  MIX4(s[0], s[1], s[2], s[3]);
 
- // AES4_LAST(s[2], 32);
-
-//  MIX4(s[0], s[1], s[2], s[3]);
-
- // AES4(s[0], s[1], s[2], s[3], 32);
- // MIX4LAST(s[0], s[1], s[2], s[3]);
-
- // s[0] = _mm_xor_si128(s[0], LOAD(in));
- // s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
- // s[2] = _mm_xor_si128(s[2], LOAD(in + 46));
- // s[3] = _mm_xor_si128(s[3], LOAD(in + 48));
+  s[0] = _mm_xor_si128(s[0], LOAD(in));
+  s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
+  s[2] = _mm_xor_si128(s[2], LOAD(in + 32));
+  s[3] = _mm_xor_si128(s[3], LOAD(in + 48));
 
  // TRUNCSTORE(out, s[0], s[1], s[2], s[3]);
 }
