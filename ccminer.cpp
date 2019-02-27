@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright 2010 Jeff Garzi
+ * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
  *
@@ -42,8 +42,8 @@
 
 #include "miner.h"
 #include "algos.h"
-//#include "sia/sia-rpc.h"
-//#include "crypto/xmr-rpc.h"
+#include "sia/sia-rpc.h"
+#include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
 
 //#include <cuda_runtime.h>
@@ -86,17 +86,17 @@ bool opt_debug_threads = false;
 bool opt_protocol = false;
 bool opt_benchmark = false;
 bool opt_showdiff = true;
-bool opt_hwmonitor = true;
+bool opt_hwmonitor = false;
 
 // todo: limit use of these flags,
 // prefer the pools[] attributes
-bool want_longpoll = true;
+bool want_longpoll = false;
 bool have_longpoll = false;
 bool want_stratum = true;
 bool have_stratum = false;
 bool allow_gbt = true;
 bool allow_mininginfo = true;
-bool check_dups = true; //false;
+bool check_dups = false; //false;
 bool check_stratum_jobs = false;
 bool opt_submit_stale = false;
 bool submit_old = false;
@@ -905,11 +905,11 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 	if (pool->type & POOL_STRATUM && stratum.is_equihash) {
 		struct work submit_work;
 		memcpy(&submit_work, work, sizeof(struct work));
-		if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
+		//if (!hashlog_already_submittted(submit_work.job_id, submit_work.nonces[idnonce])) {
 			if (equi_stratum_submit(pool, &submit_work))
 				hashlog_remember_submit(&submit_work, submit_work.nonces[idnonce]);
 			stratum.job.shares_count++;
-		}
+		//}
 		return true;
 	}
 
@@ -2038,8 +2038,7 @@ static void *miner_thread(void *userdata)
 
 		} else if (opt_algo == ALGO_EQUIHASH) {
 			nonceptr[1]++;
-			//nonceptr[1] |= thr_id << 24;
-			nonceptr[2] |= thr_id;
+			nonceptr[2] |= thr_id;  //try  was nonceptr[1] |= thr_id << 24
 			//applog_hex(&work.data[27], 32);
 		} else if (opt_algo == ALGO_WILDKECCAK) {
 			//nonceptr[1] += 1;
@@ -3296,7 +3295,8 @@ void parse_arg(int key, char *arg)
 		break;
 	case 1080: /* --led */
 		{
-			
+			if (!opt_led_mode)
+				opt_led_mode = LED_MODE_SHARES;
 			char *pch = strtok(arg,",");
 			int n = 0, lastval, val;
 			while (pch != NULL && n < MAX_GPUS) {
@@ -3304,7 +3304,7 @@ void parse_arg(int key, char *arg)
 				char * p = strstr(pch, "0x");
 				val = p ? (int32_t) strtoul(p, NULL, 16) : atoi(pch);
 				if (!val && !strcmp(pch, "mining"))
-					opt_led_mode = 1;
+					opt_led_mode = LED_MODE_MINING;
 				else if (device_led[dev_id] == -1)
 					device_led[dev_id] = lastval = val;
 				pch = strtok(NULL, ",");
@@ -3668,7 +3668,7 @@ int main(int argc, char *argv[])
 	if (!opt_quiet) {
 		const char* arch = is_x64() ? "64-bits" : "32-bits";
 
-		printf("    Built with Sweat and tears :-)" );
+		printf("    Built with VC++ %d" , msver());
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 		printf("Verus donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec  (monkins)\n");

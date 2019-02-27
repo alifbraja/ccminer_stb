@@ -36,7 +36,7 @@
 #include "miner.h"
 #include "elist.h"
 
-//#include "crypto/xmr-rpc.h"
+#include "crypto/xmr-rpc.h"
 
 extern pthread_mutex_t stratum_sock_lock;
 extern pthread_mutex_t stratum_work_lock;
