@@ -49,7 +49,7 @@ typedef unsigned char u_char;
 
 #endif
 #include "haraka.h"
-#include "haraka_portable.h"
+//#include "haraka_portable.h"
 enum {
     // Verus Key size must include the equivalent size of a Haraka key
     // after the first part.
@@ -151,10 +151,8 @@ inline void ForceCPUVerusOptimized(bool trueorfalse)
     __cpuverusoptimized = trueorfalse;
 };
 
-uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex,
-	u128 *g_prand, u128 *g_prandex);
-uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex,
-	u128 *g_prand, u128 *g_prandex);
+uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
+uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
 
 void *alloc_aligned_buffer(uint64_t bufSize);
 
@@ -171,8 +169,7 @@ void *alloc_aligned_buffer(uint64_t bufSize);
 struct verusclhasher {
     uint64_t keySizeInBytes;
     uint64_t keyMask;
-    uint64_t (*verusclhashfunction)(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, 
-		uint32_t *fixrandex, u128 *g_prand, u128 *g_prandex);
+    uint64_t (*verusclhashfunction)(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
 
     inline uint64_t keymask(uint64_t keysize)
     {

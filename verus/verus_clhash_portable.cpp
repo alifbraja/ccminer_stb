@@ -23,7 +23,7 @@
 #include <assert.h>
 #include <string.h>
 
-//#include <intrin.h>
+#include <intrin.h>
 
 
 #ifdef __APPLE__
