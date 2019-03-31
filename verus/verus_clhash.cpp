@@ -116,32 +116,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
 	uint32_t prand_idx = (selector >> 5) & keyMask;
 	uint32_t prandex_idx = (selector >>32) & keyMask;
   
-#ifdef VERUSHASHDEBUG
-		uint64_t case_v;
-		case_v = selector & 0x1cu;
-		uint64_t egg, nog, salad;
-			printf("[CPU]*****LOOP[%d]**********\n", i);
-			egg = selector & 0x03u;
-			nog = ((selector >> 32) & keyMask);
-			salad = ((selector >> 5) & keyMask);
-			printf("[CPU]selector: %llx\n case: %llx selector &3: ", selector, case_v);
-			printf("%llx \n", egg);
-			printf("[CPU]((selector >> 32) & keyMask) %d", nog);
-			printf("[CPU]((selector >> 5) & keyMask) %d", salad);
-			printf("\nacc     : ");
-			printf("%016llx%016llx", ((uint64_t*)&acc)[0], ((uint64_t*)&acc)[1]);
-			printf("\n");
 
-			printf("[CPU]prand   : ");
-			//for (int e = 0; e < 4; e++)
-			printf("%016llx%016llx", ((uint64_t*)prand)[0], ((uint64_t*)prand)[1]);
-			printf("\n");
-			printf("[CPU]prandex : ");
-			//for (int e = 0; e < 16; e++)
-			printf("%016llx%016llx", ((uint64_t*)prandex)[0], ((uint64_t*)prandex)[1]);
-			printf("\n");
-
-#endif
         switch (selector & 0x1c)
         {
             case 0:

@@ -3,7 +3,7 @@
 * Solver taken from nheqminer, by djeZo (and NiceHash)
 * tpruvot - 2017 (GPL v3)
 */
-#include <stdio.h>
+//#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -12,17 +12,20 @@
 #define VERUS_KEY_SIZE128 552
 #include <stdexcept>
 #include <vector>
-#include "verus_hash.h"
+
 #include "verus_clhash.h"
 #include "uint256.h"
 //#include "hash.h"
 #include <miner.h>
 //#include "primitives/block.h"
-//extern "C"
-//{
-//#include "haraka.h"
 
-//}
+#include "SSE2NEON.h"
+extern "C" 
+{
+//#include "haraka.h"
+#include "haraka_portable.h"
+}
+
 enum
 {
 	// primary actions
@@ -48,7 +51,7 @@ static __thread uint32_t throughput = 0;
 #define htobe32(x) swab32(x)
 #endif
 
-extern "C" void GenNewCLKey(unsigned char *seedBytes32, u128 *keyback)
+void GenNewCLKey(unsigned char *seedBytes32, __m128i *keyback)
 {
 	// generate a new key by chain hashing with Haraka256 from the last curbuf
 	int n256blks = VERUS_KEY_SIZE >> 5;  //8832 >> 5
@@ -57,7 +60,7 @@ extern "C" void GenNewCLKey(unsigned char *seedBytes32, u128 *keyback)
 	unsigned char *psrc = seedBytes32;
 	for (int i = 0; i < n256blks; i++)
 	{
-		haraka256(pkey, psrc);
+		haraka256_port(pkey, psrc);
 
 		psrc = pkey;
 		pkey += 32;
@@ -65,12 +68,12 @@ extern "C" void GenNewCLKey(unsigned char *seedBytes32, u128 *keyback)
 	if (nbytesExtra)
 	{
 		unsigned char buf[32];
-		haraka256(buf, psrc);
+		haraka256_port(buf, psrc);
 		memcpy(pkey, buf, nbytesExtra);
 	}
 }
 
-extern "C" void FixKey(uint32_t *fixrand, uint32_t *fixrandex, u128 *keyback, u128 *keyback_master)
+extern "C" void FixKey(uint32_t *fixrand, uint32_t *fixrandex, __m128i *keyback, __m128i *keyback_master)
 {
 	for (int i = 0; i < 32; i++)
 	{
@@ -94,7 +97,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 	unsigned char *tmp;
 
-	load_constants();
+	load_constants_port();
 
 	// digest up to 32 bytes at a time
 	for (int pos = 0; pos < len; )
@@ -104,7 +107,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 		if (len - pos >= room)
 		{
 			memcpy(curBuf + 32 + curPos, data + pos, room);
-			haraka512(result, curBuf);
+			haraka512_port(result, curBuf);
 			tmp = curBuf;
 			curBuf = result;
 			result = tmp;
@@ -121,7 +124,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 	memcpy(curBuf + 47, curBuf, 16);
 	memcpy(curBuf + 63, curBuf, 1);
-	//	FillExtra((u128 *)curBuf);
+	//	FillExtra((__m128i *)curBuf);
 	memcpy(result2, curBuf, 64);
 };
 
@@ -129,7 +132,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 
 extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t nonce,
-	u128 * __restrict data_key, uint8_t *gpu_init, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex, u128 * __restrict data_key_master)
+	__m128i * __restrict data_key, uint8_t *gpu_init, uint32_t * __restrict fixrand, uint32_t * __restrict fixrandex, __m128i * __restrict data_key_master)
 {
 	uint64_t mask = VERUS_KEY_SIZE128; //552
 	if (!gpu_init[0]) {
@@ -140,16 +143,16 @@ extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t 
 	}
 	memcpy(curBuf + 47, curBuf, 16);
 	memcpy(curBuf + 63, curBuf, 1);
-	//	FillExtra((u128 *)curBuf);
+	//	FillExtra((__m128i *)curBuf);
 
 	((uint32_t*)&curBuf[0])[8] = nonce;
-	uint64_t intermediate = verusclhash(data_key, curBuf, 8191, fixrand, fixrandex);
+	uint64_t intermediate = verusclhash_port(data_key, curBuf, 8191, fixrand, fixrandex);
 	//FillExtra
 	memcpy(curBuf + 47, &intermediate, 8);
 	memcpy(curBuf + 55, &intermediate, 8);
 	memcpy(curBuf + 63, &intermediate, 1);
 	intermediate &= 511;
-	haraka512_keyed(hash, curBuf, data_key + intermediate);
+  haraka512_port_keyed(hash, curBuf, data_key + intermediate);
 	FixKey(fixrand, fixrandex, data_key, data_key_master);
 }
 #ifdef _WIN32
@@ -170,11 +173,13 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint8_t gpuinit = 0;
 	struct timeval tv_start, tv_end, diff;
 	double secs, solps;
-	u128 *data_key = (u128 *)malloc(VERUS_KEY_SIZE);
+	//__m128i *data_key;
 
-	u128 *data_key_master = (u128 *)malloc(VERUS_KEY_SIZE);
-	//u128 data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
-	//u128 data_key_master[VERUS_KEY_SIZE128] = { 0 };
+	//posix_memalign((void**)&data_key,32,VERUS_KEY_SIZE);
+
+	//__m128i *data_key_master = (__m128i *)malloc(VERUS_KEY_SIZE);
+	__m128i data_key[VERUS_KEY_SIZE128] = { 0 }; // 552 required
+	__m128i data_key_master[VERUS_KEY_SIZE128] = { 0 };
 	uint32_t nonce_buf = 0;
 	uint32_t fixrand[32];
 	uint32_t fixrandex[32];

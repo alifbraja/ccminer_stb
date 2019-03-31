@@ -21,8 +21,8 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c hefty1.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp \
 			  api.cpp hashlog.cpp stats.cpp sysinfos.cpp \
-			  equi/equi-stratum.cpp verus/verusscan.cpp verus/haraka.c verus/haraka.h \
-			  verus/haraka_portable.c verus/verus_clhash.cpp verus/clhash_portable.cpp
+			  equi/equi-stratum.cpp verus/verusscan.cpp  \
+			  verus/haraka_portable.c verus/verus_clhash_portable.cpp
 
 
 
@@ -32,7 +32,7 @@ endif
 
 ccminer_LDFLAGS  = $(PTHREAD_FLAGS)
 ccminer_LDADD    = @LIBCURL@ @JANSSON_LIBS@ @PTHREAD_LIBS@ @WS2_LIBS@ @OPENMP_CFLAGS@ @LIBS@ 
-ccminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -march=native -fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES)
+ccminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -march=native -mfpu=neon -fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES)
 
 if HAVE_OSX
 ccminer_CPPFLAGS += -I/usr/local/llvm/lib/clang/4.0.0/include

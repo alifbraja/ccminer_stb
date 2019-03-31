@@ -27,8 +27,8 @@ Optimized Implementations for Haraka256 and Haraka512
 #include <stdio.h>
 #include "haraka.h"
 #include <stdint.h>
-u128 rc[40];
-u128 rc0[40] = {0};
+__m128i rc[40];
+__m128i rc0[40] = {0};
 
 void load_constants() {
   rc[0] = _mm_set_epi32(0x0684704c,0xe620c00a,0xb2c5fef0,0x75817b9d);
@@ -364,7 +364,7 @@ void haraka256_8x(unsigned char *out, const unsigned char *in) {
 }
 
 void haraka512(unsigned char *out, const unsigned char *in) {
-  u128 s[4], tmp;
+  __m128i s[4], tmp;
 
   s[0] = LOAD(in);
   s[1] = LOAD(in + 16);
@@ -395,7 +395,7 @@ void haraka512(unsigned char *out, const unsigned char *in) {
 }
 
 void haraka512_zero(unsigned char *out, const unsigned char *in) {
-  u128 s[4], tmp;
+  __m128i s[4], tmp;
 
   s[0] = LOAD(in);
   s[1] = LOAD(in + 16);
@@ -426,7 +426,7 @@ void haraka512_zero(unsigned char *out, const unsigned char *in) {
 }
 
 void haraka512_keyed(unsigned char *out, const unsigned char *in, const u128 *rc) {
-  u128 s[4], tmp;
+  __m128i s[4], tmp;
 
   s[0] = LOAD(in);
   s[1] = LOAD(in + 16);
@@ -458,7 +458,7 @@ void haraka512_keyed(unsigned char *out, const unsigned char *in, const u128 *rc
 }
 
 void haraka512_4x(unsigned char *out, const unsigned char *in) {
-  u128 s[4][4], tmp;
+  __m128i s[4][4], tmp;
 
   s[0][0] = LOAD(in);
   s[0][1] = LOAD(in + 16);

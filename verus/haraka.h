@@ -27,7 +27,7 @@ Optimized Implementations for Haraka256 and Haraka512
 #ifndef HARAKA_H_
 #define HARAKA_H_
 
-#include "immintrin.h"
+#include "SSE2NEON.h"
 
 #define NUMROUNDS 5
 
@@ -133,7 +133,7 @@ Optimized Implementations for Haraka256 and Haraka512
 #ifdef HARAKA_H_
 
 
-#include "immintrin.h"
+//#include "immintrin.h"
 
 #define NUMROUNDS 5
 
@@ -144,7 +144,7 @@ typedef unsigned long u64;
 #endif
 typedef __m128i u128;
 
-extern u128 rc[40];
+extern __m128i rc[40];
 
 #define LOAD(src) _mm_load_si128((u128 *)(src))
 #define STORE(dest,src) _mm_storeu_si128((u128 *)(dest),src)
