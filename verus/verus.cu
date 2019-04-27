@@ -316,7 +316,7 @@ __device__  __forceinline__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
 	//uint64_t b = 27 ;
 	uint8_t  i; //window size s = 4,
 				//uint64_t two_s = 16; //2^s
-				//uint64_t smask = 15; //s 15
+				//uint64_t smask = 15; //s 15 
 	uint8_t u[8];
 	uint128m r;
 	uint64_t tmp;
