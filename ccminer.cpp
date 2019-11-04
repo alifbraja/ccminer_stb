@@ -42,8 +42,7 @@
 
 #include "miner.h"
 #include "algos.h"
-#include "sia/sia-rpc.h"
-#include "crypto/xmr-rpc.h"
+
 #include "equi/equihash.h"
 
 //#include <cuda_runtime.h>
