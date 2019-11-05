@@ -151,7 +151,7 @@ inline void ForceCPUVerusOptimized(bool trueorfalse)
     __cpuverusoptimized = trueorfalse;
 };
 
-uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
+uint64_t verusclhash(void * random, __m128i* buf, uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
 uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
 
 void *alloc_aligned_buffer(uint64_t bufSize);
@@ -169,7 +169,7 @@ void *alloc_aligned_buffer(uint64_t bufSize);
 struct verusclhasher {
     uint64_t keySizeInBytes;
     uint64_t keyMask;
-    uint64_t (*verusclhashfunction)(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
+    uint64_t (*verusclhashfunction)(void * random, __m128i *buf, uint64_t keyMask, uint32_t *fixrand, uint32_t *fixrandex);
 
     inline uint64_t keymask(uint64_t keysize)
     {
@@ -184,14 +184,10 @@ struct verusclhasher {
     // align on 256 bit boundary at end
     verusclhasher(uint64_t keysize=VERUSKEYSIZE) : keySizeInBytes((keysize >> 5) << 5)
     {
-        if (IsCPUVerusOptimized())
-        {
+      
             verusclhashfunction = &verusclhash;
-        }
-        else
-        {
-            verusclhashfunction = &verusclhash_port;
-        }
+        
+     
 
         // if we changed, change it
         if (verusclhasher_key.get() && keySizeInBytes != ((verusclhash_descr *)verusclhasher_descr.get())->keySizeInBytes)

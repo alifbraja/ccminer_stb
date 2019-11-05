@@ -36,7 +36,7 @@
 #include "miner.h"
 #include "elist.h"
 
-#include "crypto/xmr-rpc.h"
+
 
 extern pthread_mutex_t stratum_sock_lock;
 extern pthread_mutex_t stratum_work_lock;
@@ -1648,7 +1648,7 @@ static bool stratum_get_algo(struct stratum_ctx *sctx, json_t *id, json_t *param
 	return ret;
 }
 
-#include "nvml.h"
+
 extern char driver_version[32];
 extern int cuda_arch[MAX_GPUS];
 

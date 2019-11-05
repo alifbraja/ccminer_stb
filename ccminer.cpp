@@ -42,8 +42,6 @@
 
 #include "miner.h"
 #include "algos.h"
-#include "sia/sia-rpc.h"
-#include "crypto/xmr-rpc.h"
 #include "equi/equihash.h"
 
 //#include <cuda_runtime.h>
@@ -55,12 +53,12 @@
 BOOL WINAPI ConsoleHandler(DWORD);
 #endif
 
-#define PROGRAM_NAME		"ccminer"
+#define PROGRAM_NAME		"ccminer_cpu"
 #define LP_SCANTIME		60
 #define HEAVYCOIN_BLKHDR_SZ		84
 #define MNR_BLKHDR_SZ 80
 
-#include "nvml.h"
+
 #ifdef USE_WRAPNVML
 nvml_handle *hnvml = NULL;
 #endif
@@ -1763,7 +1761,7 @@ static bool wanna_mine(int thr_id)
 		float temp = gpu_temp(cgpu);
 		if (temp > opt_max_temp) {
 			if (!conditional_state[thr_id] && !opt_quiet)
-				gpulog(LOG_INFO, thr_id, "temperature too high (%.0f°c), waiting...", temp);
+				gpulog(LOG_INFO, thr_id, "temperature too high (%.0fï¿½c), waiting...", temp);
 			state = false;
 		} else if (opt_max_temp > 0. && opt_resume_temp > 0. && conditional_state[thr_id] && temp > opt_resume_temp) {
 			if (!thr_id && opt_debug)
@@ -3295,8 +3293,7 @@ void parse_arg(int key, char *arg)
 		break;
 	case 1080: /* --led */
 		{
-			if (!opt_led_mode)
-				opt_led_mode = LED_MODE_SHARES;
+			
 			char *pch = strtok(arg,",");
 			int n = 0, lastval, val;
 			while (pch != NULL && n < MAX_GPUS) {
@@ -3304,7 +3301,7 @@ void parse_arg(int key, char *arg)
 				char * p = strstr(pch, "0x");
 				val = p ? (int32_t) strtoul(p, NULL, 16) : atoi(pch);
 				if (!val && !strcmp(pch, "mining"))
-					opt_led_mode = LED_MODE_MINING;
+					opt_led_mode =0;
 				else if (device_led[dev_id] == -1)
 					device_led[dev_id] = lastval = val;
 				pch = strtok(NULL, ",");
@@ -3668,7 +3665,6 @@ int main(int argc, char *argv[])
 	if (!opt_quiet) {
 		const char* arch = is_x64() ? "64-bits" : "32-bits";
 
-		printf("    Built with a compiler ");
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 		printf("Verus donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec  (monkins)\n");

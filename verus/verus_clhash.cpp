@@ -403,9 +403,9 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat(__m128i * __restrict 
 
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
-uint64_t verusclhash(void * random, const unsigned char buf[64], uint64_t keyMask, uint32_t *  __restrict fixrand, uint32_t * __restrict fixrandex) {
+uint64_t verusclhash(void * random, __m128i *buf, uint64_t keyMask, uint32_t *  __restrict fixrand, uint32_t * __restrict fixrandex) {
 	const __m128i lazy = _mm_cvtsi32_si128( 0x00010000);
-	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, (const __m128i *)buf, keyMask, fixrand, fixrandex);
+	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat((__m128i *)random, buf, keyMask, fixrand, fixrandex);
     acc = _mm_xor_si128(acc, lazy);
 
 

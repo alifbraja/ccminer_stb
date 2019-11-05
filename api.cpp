@@ -32,7 +32,7 @@
 #include <sys/types.h>
 
 #include "miner.h"
-#include "nvml.h"
+
 #include "algos.h"
 
 #ifndef WIN32

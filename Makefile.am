@@ -18,7 +18,7 @@ bin_PROGRAMS = ccminer
 ccminer_SOURCES	= elist.h miner.h compat.h \
 			  compat/inttypes.h compat/stdbool.h compat/unistd.h bignum.cpp bignum.hpp \
 			  compat/sys/time.h compat/getopt/getopt.h \
-			  crc32.c hefty1.c \
+			  crc32.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp \
 			  api.cpp hashlog.cpp stats.cpp sysinfos.cpp \
 			  equi/equi-stratum.cpp verus/verusscan.cpp verus/haraka.c verus/haraka.h \
