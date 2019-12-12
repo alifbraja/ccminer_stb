@@ -169,8 +169,7 @@
       <Optimization>MaxSpeed</Optimization>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>
-      </EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
       <OpenMPSupport>true</OpenMPSupport>
       <CompileAsManaged>false</CompileAsManaged>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -227,7 +226,6 @@
     <ClCompile Include="compat\jansson\utf.c" />
     <ClCompile Include="compat\jansson\value.c" />
     <ClCompile Include="verus\haraka_portable.c" />
-    <ClCompile Include="verus\verus_clhash.cpp" />
     <ClCompile Include="verus\verus_clhash_portable.cpp" />
     <ClInclude Include="compat\pthreads\pthread.h" />
     <ClCompile Include="compat\winansi.c" />
@@ -247,11 +245,9 @@
     <ClCompile Include="sysinfos.cpp" />
     <ClCompile Include="crc32.c" />
     <ClInclude Include="equi\equihash.h" />
-    <ClCompile Include="verus\haraka.c" />
     <ClCompile Include="verus\verusscan.cpp">
       <FileType>Document</FileType>
     </ClCompile>
-    <ClInclude Include="verus\verus_hash.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="compat.h" />
