@@ -47,10 +47,8 @@
 #else
 //#include <x86intrin.h>
 //#include "arm_neon.h"
+#include <immintrin.h>
 
-#   include "SSE2NEON.h"
-#include "softaesnc.h"
-typedef int32x4_t __m128i;
 
 #endif //WIN32
 
@@ -61,7 +59,7 @@ typedef int32x4_t __m128i;
   s1 = _mm_aesenc_si128(s1, rc[rci + 3]);
 
 // portable
-__m128i lazyLengthHash_port(uint64_t keylength, uint64_t length) {
+__m128i lazyLengthHash_port (uint64_t keylength, uint64_t length) {
 	const __m128i lengthvector = _mm_set_epi64x(keylength, length);
 	const __m128i clprod1 = _mm_clmulepi64_si128(lengthvector, lengthvector, 0x10);
 	return clprod1;
@@ -89,11 +87,13 @@ uint64_t precompReduction64_port(__m128i A) {
 
 
 // verus intermediate hash extra
-__inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask, uint16_t * __restrict fixrand, uint16_t * __restrict fixrandex)
+__inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask, 
+	uint16_t * __restrict fixrand, uint16_t * __restrict fixrandex, uchar version)
 {
 	const __m128i *pbuf;
-
+	
 	const __m128i pbuf_copy[4] = { _mm_xor_si128(buf[0], buf[2]), _mm_xor_si128(buf[1], buf[3]), buf[2], buf[3] };
+
 	// divide key mask by 16 from bytes to __m128i
 	keyMask >>= 4;
 
@@ -115,7 +115,10 @@ __inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *rand
 	
 
 		// select random start and order of pbuf processing
+		if (version)
 		pbuf = pbuf_copy + (selector & 3);
+		else
+		pbuf = buf + (selector & 3);
 		uint32_t prand_idx = (selector >> 5) & keyMask;
 		uint32_t prandex_idx = (selector >> 32) & keyMask;
 
@@ -281,7 +284,13 @@ __inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *rand
 
 			do
 			{
-				if (selector & (((uint64_t)0x10000000) << rounds))
+				uint64_t temp_v;
+				if(version == 0x30)
+				temp_v = selector & ((uint64_t)0x10000000) << rounds;
+				else
+					temp_v = selector & (0x10000000) << rounds;
+
+				if (temp_v)
 				{
 					onekey = _mm_load_si128(rc++);
 					const __m128i temp2 = _mm_load_si128(rounds & 1 ? pbuf : buftmp);
@@ -311,6 +320,25 @@ __inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *rand
 			break;
 		}
 		case 0x18:
+		{
+			if (version == 0)
+			{
+				const __m128i temp1 = _mm_load_si128(pbuf - (((selector & 1) << 1) - 1));
+				const __m128i temp2 = _mm_load_si128(prand);
+				const __m128i add1 = _mm_xor_si128(temp1, temp2);
+				const __m128i clprod1 = _mm_clmulepi64_si128(add1, add1, 0x10);
+				acc = _mm_xor_si128(clprod1, acc);
+
+				const __m128i tempa1 = _mm_mulhrs_epi16(acc, temp2);
+				const __m128i tempa2 = _mm_xor_si128(tempa1, temp2);
+
+				const __m128i tempb3 = _mm_load_si128(prandex);
+				_mm_store_si128(prandex, tempa2);
+				_mm_store_si128(prand, tempb3);
+				
+				break;
+			}
+			else
 		{
 			const __m128i *buftmp = pbuf - (((selector & 1) << 1) - 1);
 			__m128i tmp; // used by MIX2
@@ -350,6 +378,7 @@ __inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *rand
 			_mm_store_si128(prand, onekey);
 			break;
 		}
+}
 		case 0x1c:
 		{
 			const __m128i temp1 = _mm_load_si128(pbuf);
@@ -384,12 +413,12 @@ __inline  __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *rand
 
 // hashes 64 bytes only by doing a carryless multiplication and reduction of the repeated 64 byte sequence 16 times, 
 // returning a 64 bit hash value
-uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask, uint16_t *  __restrict fixrand, uint16_t * __restrict fixrandex) {
+uint64_t verusclhash_port(void * random, const unsigned char buf[64], uint64_t keyMask, uint16_t *  __restrict fixrand, uint16_t * __restrict fixrandex, uchar version) {
 	const unsigned int  m = 128;// we process the data in chunks of 16 cache lines
 	__m128i * rs64 = (__m128i *)random;
 	const __m128i * string = (const __m128i *) buf;
 
-	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat_port(rs64, string, keyMask, fixrand, fixrandex);
+	__m128i  acc = __verusclmulwithoutreduction64alignedrepeat_port(rs64, string, keyMask, fixrand, fixrandex, version);
 	acc = _mm_xor_si128(acc, lazyLengthHash_port(1024, 64));
 	return precompReduction64_port(acc);
 }

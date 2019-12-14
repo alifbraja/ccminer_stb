@@ -130,7 +130,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 
 
 __inline void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t nonce,
-	__m128i * __restrict data_key, uint8_t *gpu_init, uint16_t * __restrict fixrand, uint16_t * __restrict fixrandex, __m128i * __restrict data_key_master)
+	__m128i * __restrict data_key, uint8_t *gpu_init, uint16_t * __restrict fixrand, uint16_t * __restrict fixrandex, __m128i * __restrict data_key_master, uchar version)
 {
 	uint64_t mask = VERUS_KEY_SIZE128; //552
 	if (!gpu_init[0]) {
@@ -144,7 +144,7 @@ __inline void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t no
 	//	FillExtra((__m128i *)curBuf);
 
 	((uint32_t*)&curBuf[0])[8] =  nonce;
-	uint64_t intermediate = verusclhash_port(data_key, curBuf, 8191, fixrand, fixrandex);
+	uint64_t intermediate = verusclhash_port(data_key, curBuf, 8191, fixrand, fixrandex, version);
 	//FillExtra
 	memcpy(curBuf + 47, &intermediate, 8);
 	memcpy(curBuf + 55, &intermediate, 8);
@@ -168,7 +168,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	//	};
 
 		
-		uint32_t _ALIGN(64) endiandata[35];
+	uint32_t _ALIGN(64) endiandata[35];
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
 
@@ -186,8 +186,13 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint32_t nonce_buf = 0;
 	uint16_t fixrand[32];
 	uint16_t fixrandex[32];
+	unsigned char version = work->maxvote;
+	unsigned char block_41970[] = { 0xfd, 0x40, 0x05, 0x01};
 
-	unsigned char block_41970[] = { 0xfd, 0x40, 0x05, 0x03 };
+
+	if (version)
+		block_41970[3] = 0x03;
+
 	uint8_t _ALIGN(64) full_data[140 + 3 + 1344] = { 0 };
 	uint8_t* sol_data = &full_data[140];
 
@@ -195,10 +200,6 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	memcpy(sol_data, block_41970, 4);
 	memcpy(full_data, endiandata, 140);
 	//memcpy(full_data, data, 1487);
-
-	//for (int i = 0, j = 0; i < 1487; ++i, j += 2)
-	//	sprintf(full_data + j, "%02x", testt[i] & 0xff);
-
 
 	uint32_t _ALIGN(64) vhash[8] = { 0 };
 
@@ -213,7 +214,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	do {
 
 		*hashes_done = nonce_buf + throughput;
-		Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, nonce_buf, data_key, &gpuinit, fixrand, fixrandex, data_key_master);
+		Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, nonce_buf, data_key, &gpuinit, fixrand, fixrandex, data_key_master,version);
 
 		if (vhash[7] <= Htarg)
 		{

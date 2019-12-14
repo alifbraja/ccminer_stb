@@ -61,6 +61,7 @@ double equi_network_diff(struct work *work)
 	//KMD bits: "1d 686aaf",
 	//KMD target: "00 0000 686aaf0000000000000000000000000000000000000000000000000000",
 	uint32_t nbits = work->data[26];
+	
 	uint32_t bits = (nbits & 0xffffff);
 	int16_t shift = (swab32(nbits) & 0xff);
 	shift = (31 - shift) * 8; // 8 bits shift for 0x1e, 16 for 0x1d
@@ -71,6 +72,8 @@ double equi_network_diff(struct work *work)
 	for (int b=0; b<8; b++)
 		net_target[31-b] = ((uint8_t*)&tgt64)[b];
 	// applog_hex(net_target, 32);
+	//for (int i = 0; i < 8; i++)work->target[i] = ((uint32_t*)(&net_target))[i];
+	
 	double d = target_to_diff_equi((uint32_t*)net_target);
 	return d;
 }
@@ -94,10 +97,10 @@ bool equi_stratum_set_target(struct stratum_ctx *sctx, json_t *params)
 		return false;
 
 	hex2bin(target_bin, target_hex, 32);
-	memset(target_be, 0xff, 32);
+	memset(target_be, 0x00, 32);
 	int filled = 0;
 	for (int i=0; i<32; i++) {
-		if (filled == 3) break;
+		if (filled == 8) break;
 		target_be[31-i] = target_bin[i];
 		if (target_bin[i]) filled++;
 	}
@@ -115,7 +118,7 @@ bool equi_stratum_set_target(struct stratum_ctx *sctx, json_t *params)
 
 bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 {
-	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime;
+	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime, *solution;
 	size_t coinb1_size, coinb2_size;
 	bool clean, ret = false;
 	int ntime, i, p=0;
@@ -125,7 +128,8 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	coinb1 = json_string_value(json_array_get(params, p++)); //merkle
 	coinb2 = json_string_value(json_array_get(params, p++)); //blank (reserved)
 	stime = json_string_value(json_array_get(params, p++));
-	nbits = json_string_value(json_array_get(params, p++));
+	nbits = json_string_value(json_array_get(params, p++)); p++;
+	solution = json_string_value(json_array_get(params, p++));
 	clean = json_is_true(json_array_get(params, p)); p++;
 
 	if (!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
@@ -174,6 +178,10 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 
 	hex2bin(sctx->job.nbits, nbits, 4);
 	hex2bin(sctx->job.ntime, stime, 4);
+	if(solution)
+	sctx->job.nreward[0] = solution[0]; //just copy the version
+	else sctx->job.nreward[0] = 0;
+
 	sctx->job.clean = clean;
 
 	sctx->job.diff = sctx->next_diff;
@@ -200,7 +208,7 @@ bool equi_stratum_show_message(struct stratum_ctx *sctx, json_t *id, json_t *par
 			uint32_t height = 0;
 			int ss = sscanf(data, "equihash %s block %u", symbol, &height);
 			if (height && ss > 1) sctx->job.height = height;
-			if (opt_debug && ss > 1) applog(LOG_DEBUG, "%s", data);
+			//if (opt_debug && ss > 1) applog(LOG_DEBUG, "%s", data);
 		}
 	}
 
@@ -227,7 +235,7 @@ void equi_store_work_solution(struct work* work, uint32_t* hash, void* sol_data)
 	//work->sharediff[nonce] = target_to_diff_equi(hash);
 }
 
-#define JSON_SUBMIT_BUF_LEN (4*1024)
+#define JSON_SUBMIT_BUF_LEN (20*1024)
 // called by submit_upstream_work()
 bool equi_stratum_submit(struct pool_infos *pool, struct work *work)
 {

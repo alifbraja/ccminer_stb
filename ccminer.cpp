@@ -1,4 +1,4 @@
-/*
+﻿/*
  * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
@@ -42,6 +42,7 @@
 
 #include "miner.h"
 #include "algos.h"
+
 #include "equi/equihash.h"
 
 //#include <cuda_runtime.h>
@@ -53,11 +54,10 @@
 BOOL WINAPI ConsoleHandler(DWORD);
 #endif
 
-#define PROGRAM_NAME		"ccminer_cpu"
+#define PROGRAM_NAME		"ccminer"
 #define LP_SCANTIME		60
 #define HEAVYCOIN_BLKHDR_SZ		84
 #define MNR_BLKHDR_SZ 80
-
 
 #ifdef USE_WRAPNVML
 nvml_handle *hnvml = NULL;
@@ -743,11 +743,7 @@ static bool work_decode(const json_t *val, struct work *work)
 		return false;
 	}
 
-	if (opt_algo == ALGO_HEAVY) {
-		if (unlikely(!jobj_binary(val, "maxvote", &work->maxvote, sizeof(work->maxvote)))) {
-			work->maxvote = 2048;
-		}
-	} else work->maxvote = 0;
+
 
 	for (i = 0; i < adata_sz; i++)
 		work->data[i] = le32dec(work->data + i);
@@ -1615,6 +1611,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		//applog_hex(work->data, 180);
 	} else if (opt_algo == ALGO_EQUIHASH) {
 		memcpy(&work->data[9], sctx->job.coinbase, 32+32); // merkle [9..16] + reserved
+		memcpy(&work->maxvote, sctx->job.nreward, 1);  //TODO should create a new sruct member called version
 		work->data[25] = le32dec(sctx->job.ntime);
 		work->data[26] = le32dec(sctx->job.nbits);
 		memcpy(&work->data[27], sctx->xnonce1, sctx->xnonce1_size & 0x1F); // pool extranonce
@@ -1761,7 +1758,7 @@ static bool wanna_mine(int thr_id)
 		float temp = gpu_temp(cgpu);
 		if (temp > opt_max_temp) {
 			if (!conditional_state[thr_id] && !opt_quiet)
-				gpulog(LOG_INFO, thr_id, "temperature too high (%.0f�c), waiting...", temp);
+				gpulog(LOG_INFO, thr_id, "temperature too high (%.0f°c), waiting...", temp);
 			state = false;
 		} else if (opt_max_temp > 0. && opt_resume_temp > 0. && conditional_state[thr_id] && temp > opt_resume_temp) {
 			if (!thr_id && opt_debug)
@@ -3300,10 +3297,7 @@ void parse_arg(int key, char *arg)
 				int dev_id = device_map[n++];
 				char * p = strstr(pch, "0x");
 				val = p ? (int32_t) strtoul(p, NULL, 16) : atoi(pch);
-				if (!val && !strcmp(pch, "mining"))
-					opt_led_mode =0;
-				else if (device_led[dev_id] == -1)
-					device_led[dev_id] = lastval = val;
+				
 				pch = strtok(NULL, ",");
 			}
 			if (lastval) while (n < MAX_GPUS) {
@@ -3664,6 +3658,7 @@ int main(int argc, char *argv[])
 	printf("*** ccminer " PACKAGE_VERSION " for CPU's by Monkins1010 based on ccminer***\n");
 	if (!opt_quiet) {
 		const char* arch = is_x64() ? "64-bits" : "32-bits";
+
 
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");

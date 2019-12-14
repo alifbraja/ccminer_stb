@@ -21,8 +21,8 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp \
 			  api.cpp hashlog.cpp stats.cpp sysinfos.cpp \
-			  equi/equi-stratum.cpp verus/verusscan.cpp verus/haraka.c verus/haraka.h \
-			  verus/haraka_portable.c verus/verus_clhash.cpp
+			  equi/equi-stratum.cpp verus/verusscan.cpp \
+			  verus/haraka_portable.c verus/verus_clhash_portable.cpp
 
 
 if HAVE_WINDOWS
