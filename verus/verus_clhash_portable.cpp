@@ -330,6 +330,7 @@ static inline uint64_t precompReduction64_port(__m128i A) {
 static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randomsource, const __m128i buf[4], uint64_t keyMask)
 {
 	__m128i const *pbuf;
+ const __m128i pbuf_copy[4] = {_mm_xor_si128(buf[0],buf[2]), _mm_xor_si128(buf[1],buf[3]), buf[2], buf[3]}; 
 
 	/*
 	std::cout << "Random key start: ";
@@ -359,7 +360,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
 	
 
 		// select random start and order of pbuf processing
-		pbuf = buf + (selector & 3);
+		pbuf = pbuf_copy + (selector & 3);
 
 		switch (selector & 0x1c)
 		{
@@ -517,98 +518,91 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
 			_mm_store_si128_emu(prand, tempa4);
 			break;
 		}
-		case 0x14:
-		{
-			// we'll just call this one the monkins loop, inspired by Chris
-			const __m128i *buftmp = pbuf - (((selector & 1) << 1) - 1);
-			__m128i tmp; // used by MIX2
+            case 0x14:
+            {
+                // we'll just call this one the monkins loop, inspired by Chris
+                const __m128i *buftmp = pbuf - (((selector & 1) << 1) - 1);
+                __m128i tmp; // used by MIX2
 
-			uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
-			__m128i *rc = prand;
-			uint64_t aesround = 0;
-			__m128i onekey;
+                uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
+                __m128i *rc = prand;
+                uint64_t aesround = 0;
+                __m128i onekey;
 
-			do
-			{
-				//std::cout << "acc: " << LEToHex(acc) << ", round check: " << LEToHex((selector & (0x10000000 << rounds))) << std::endl;
+                do
+                {
+                    // this is simplified over the original verus_clhash
+                    if (selector & (((uint64_t)0x10000000) << rounds))
+                    {
+                        onekey = _mm_load_si128_emu(rc++);
+                        const __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
+                        const __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
+                        const __m128i clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
+                        acc = _mm_xor_si128_emu(clprod1, acc);
+                    }
+                    else
+                    {
+                        onekey = _mm_load_si128_emu(rc++);
+                        __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
+                        const uint64_t roundidx = aesround++ << 2;
+                        AES2_EMU(onekey, temp2, roundidx);
 
-				// note that due to compiler and CPUs, we expect this to do:
-				// if (selector & ((0x10000000 << rounds) & 0xffffffff) if rounds != 3 else selector & 0xffffffff80000000):
-				if (selector & (0x10000000 << rounds))
-				{
-					onekey = _mm_load_si128_emu(rc++);
-					const __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
-					const __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
-					const __m128i clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-					acc = _mm_xor_si128_emu(clprod1, acc);
-				}
-				else
-				{
-					onekey = _mm_load_si128_emu(rc++);
-					__m128i temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
-					const uint64_t roundidx = aesround++ << 2;
-					AES2_EMU(onekey, temp2, roundidx);
+                        MIX2_EMU(onekey, temp2);
 
-					/*
-					std::cout << " onekey1: " << LEToHex(onekey) << std::endl;
-					std::cout << "  temp21: " << LEToHex(temp2) << std::endl;
-					std::cout << "roundkey: " << LEToHex(rc[roundidx]) << std::endl;
+                        acc = _mm_xor_si128_emu(onekey, acc);
+                        acc = _mm_xor_si128_emu(temp2, acc);
+                    }
+                } while (rounds--);
 
-					aesenc((unsigned char *)&onekey, (unsigned char *)&(rc[roundidx]));
+                const __m128i tempa1 = _mm_load_si128_emu(prand);
+                const __m128i tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1);
+                const __m128i tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
 
-					std::cout << "onekey2: " << LEToHex(onekey) << std::endl;
-					std::cout << "roundkey: " << LEToHex(rc[roundidx + 1]) << std::endl;
+                const __m128i tempa4 = _mm_load_si128_emu(prandex);
+                _mm_store_si128_emu(prandex, tempa3);
+                _mm_store_si128_emu(prand, tempa4);
+                break;
+            }
+            case 0x18:
+            {
+                const __m128i *buftmp = pbuf - (((selector & 1) << 1) - 1);
+                __m128i tmp; // used by MIX2
 
-					aesenc((unsigned char *)&temp2, (unsigned char *)&(rc[roundidx + 1]));
+                uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
+                __m128i *rc = prand;
+                uint64_t aesroundoffset = 0;
+                __m128i onekey;
 
-					std::cout << " temp22: " << LEToHex(temp2) << std::endl;
-					std::cout << "roundkey: " << LEToHex(rc[roundidx + 2]) << std::endl;
+                do
+                {
+                    if (selector & (((uint64_t)0x10000000) << rounds))
+                    {
+                        onekey = _mm_load_si128_emu(rc++);
+                        const __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
+                        __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
+                        // cannot be zero here, may be negative
+                        const int32_t divisor = (uint32_t)selector;
+                        const int64_t dividend = _mm_cvtsi128_si64_emu(add1);
+                        const __m128i modulo = _mm_cvtsi32_si128_emu(dividend % divisor);
+                        acc = _mm_xor_si128_emu(modulo, acc);
+                    }
+                    else
+                    {
+                        onekey = _mm_load_si128_emu(rc++);
+                        __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
+                        const __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
+                        const __m128i clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
+                        const __m128i clprod2 = _mm_mulhrs_epi16_emu(acc, clprod1);
+                        acc = _mm_xor_si128_emu(clprod2, acc);
+                    }
+                } while (rounds--);
 
-					aesenc((unsigned char *)&onekey, (unsigned char *)&(rc[roundidx + 2]));
-
-					std::cout << "onekey2: " << LEToHex(onekey) << std::endl;
-
-					aesenc((unsigned char *)&temp2, (unsigned char *)&(rc[roundidx + 3]));
-
-					std::cout << " temp22: " << LEToHex(temp2) << std::endl;
-					*/
-
-					MIX2_EMU(onekey, temp2);
-
-					/*
-					std::cout << "onekey3: " << LEToHex(onekey) << std::endl;
-					*/
-
-					acc = _mm_xor_si128_emu(onekey, acc);
-					acc = _mm_xor_si128_emu(temp2, acc);
-				}
-			} while (rounds--);
-
-			const __m128i tempa1 = _mm_load_si128_emu(prand);
-			const __m128i tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1);
-			const __m128i tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
-
-			const __m128i tempa4 = _mm_load_si128_emu(prandex);
-			_mm_store_si128_emu(prandex, tempa3);
-			_mm_store_si128_emu(prand, tempa4);
-			break;
-		}
-		case 0x18:
-		{
-			const __m128i temp1 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-			const __m128i temp2 = _mm_load_si128_emu(prand);
-			const __m128i add1 = _mm_xor_si128_emu(temp1, temp2);
-			const __m128i clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-			acc = _mm_xor_si128_emu(clprod1, acc);
-
-			const __m128i tempa1 = _mm_mulhrs_epi16_emu(acc, temp2);
-			const __m128i tempa2 = _mm_xor_si128_emu(tempa1, temp2);
-
-			const __m128i tempb3 = _mm_load_si128_emu(prandex);
-			_mm_store_si128_emu(prandex, tempa2);
-			_mm_store_si128_emu(prand, tempb3);
-			break;
-		}
+                const __m128i tempa3 = _mm_load_si128_emu(prandex);
+                const __m128i tempa4 = _mm_xor_si128_emu(tempa3, acc);
+                _mm_store_si128_emu(prandex, tempa4);
+                _mm_store_si128_emu(prand, onekey);
+                break;
+            }
 		case 0x1c:
 		{
 			const __m128i temp1 = _mm_load_si128_emu(pbuf);
