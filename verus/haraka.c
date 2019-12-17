@@ -113,31 +113,31 @@ void test_implementations() {
 }
 
 void haraka256(unsigned char *out, const unsigned char *in) {
-  __m128i s[2], tmp;
+	__m128i s[2], tmp;
 
-  s[0] = LOAD(in);
-  s[1] = LOAD(in + 16);
+	s[0] = LOAD(in);
+	s[1] = LOAD(in + 16);
 
-  AES2(s[0], s[1], 0);
-  MIX2(s[0], s[1]);
+	AES2(s[0], s[1], 0);
+	MIX2(s[0], s[1]);
 
-  AES2(s[0], s[1], 4);
-  MIX2(s[0], s[1]);
+	AES2(s[0], s[1], 4);
+	MIX2(s[0], s[1]);
 
-  AES2(s[0], s[1], 8);
-  MIX2(s[0], s[1]);
+	AES2(s[0], s[1], 8);
+	MIX2(s[0], s[1]);
 
-  AES2(s[0], s[1], 12);
-  MIX2(s[0], s[1]);
+	AES2(s[0], s[1], 12);
+	MIX2(s[0], s[1]);
 
-  AES2(s[0], s[1], 16);
-  MIX2(s[0], s[1]);
+	AES2(s[0], s[1], 16);
+	MIX2(s[0], s[1]);
 
-  s[0] = _mm_xor_si128(s[0], LOAD(in));
-  s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
+	s[0] = _mm_xor_si128(s[0], LOAD(in));
+	s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
 
-  STORE(out, s[0]);
-  STORE(out + 16, s[1]);
+	STORE(out, s[0]);
+	STORE(out + 16, s[1]);
 }
 
 void haraka256_keyed(unsigned char *out, const unsigned char *in, const u128 *rc) {
@@ -146,20 +146,6 @@ void haraka256_keyed(unsigned char *out, const unsigned char *in, const u128 *rc
   s[0] = LOAD(in);
   s[1] = LOAD(in + 16);
 
-  AES2(s[0], s[1], 0);
-  MIX2(s[0], s[1]);
-
-  AES2(s[0], s[1], 4);
-  MIX2(s[0], s[1]);
-
-  AES2(s[0], s[1], 8);
-  MIX2(s[0], s[1]);
-
-  AES2(s[0], s[1], 12);
-  MIX2(s[0], s[1]);
-
-  AES2(s[0], s[1], 16);
-  MIX2(s[0], s[1]);
 
   s[0] = _mm_xor_si128(s[0], LOAD(in));
   s[1] = _mm_xor_si128(s[1], LOAD(in + 16));
@@ -178,42 +164,7 @@ void haraka256_4x(unsigned char *out, const unsigned char *in) {
   s[2][0] = LOAD(in + 64);
   s[2][1] = LOAD(in + 80);
   s[3][0] = LOAD(in + 96);
-  s[3][1] = LOAD(in + 112);
 
-  // Round 1
-  AES2_4x(s[0], s[1], s[2], s[3], 0);
-
-  MIX2(s[0][0], s[0][1]);
-  MIX2(s[1][0], s[1][1]);
-  MIX2(s[2][0], s[2][1]);
-  MIX2(s[3][0], s[3][1]);
-
-  // Round 2
-  AES2_4x(s[0], s[1], s[2], s[3], 4);
-
-  MIX2(s[0][0], s[0][1]);
-  MIX2(s[1][0], s[1][1]);
-  MIX2(s[2][0], s[2][1]);
-  MIX2(s[3][0], s[3][1]);
-
-  // Round 3
-  AES2_4x(s[0], s[1], s[2], s[3], 8);
-
-  MIX2(s[0][0], s[0][1]);
-  MIX2(s[1][0], s[1][1]);
-  MIX2(s[2][0], s[2][1]);
-  MIX2(s[3][0], s[3][1]);
-
-  // Round 4
-  AES2_4x(s[0], s[1], s[2], s[3], 12);
-
-  MIX2(s[0][0], s[0][1]);
-  MIX2(s[1][0], s[1][1]);
-  MIX2(s[2][0], s[2][1]);
-  MIX2(s[3][0], s[3][1]);
-
-  // Round 5
-  AES2_4x(s[0], s[1], s[2], s[3], 16);
 
   MIX2(s[0][0], s[0][1]);
   MIX2(s[1][0], s[1][1]);

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright 2010 Jeff Garzik
  * Copyright 2012-2014 pooler
  * Copyright 2014-2017 tpruvot
@@ -1758,7 +1758,7 @@ static bool wanna_mine(int thr_id)
 		float temp = gpu_temp(cgpu);
 		if (temp > opt_max_temp) {
 			if (!conditional_state[thr_id] && !opt_quiet)
-				gpulog(LOG_INFO, thr_id, "temperature too high (%.0f°c), waiting...", temp);
+				gpulog(LOG_INFO, thr_id, "temperature too high (%.0f�c), waiting...", temp);
 			state = false;
 		} else if (opt_max_temp > 0. && opt_resume_temp > 0. && conditional_state[thr_id] && temp > opt_resume_temp) {
 			if (!thr_id && opt_debug)
@@ -2312,6 +2312,11 @@ static void *miner_thread(void *userdata)
 
 		work.valid_nonces = 0;
 
+		if (abort_flag)
+			break; // time to leave the mining loop...
+
+		if (work_restart[thr_id].restart)
+			continue;
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 

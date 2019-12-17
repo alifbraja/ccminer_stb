@@ -2,5 +2,5 @@
 
 extracflags="-march=native -D_REENTRANT -falign-functions=16 -falign-jumps=16 -falign-labels=16"
 
-./configure CXXFLAGS="-O3 $extracflags"
+./configure CXXFLAGS="-O2 $extracflags"
 
