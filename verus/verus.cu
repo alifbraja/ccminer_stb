@@ -1,7 +1,7 @@
 #include <miner.h>
 
 #include <cuda_helper.h>
-
+//unsigned int atomicAdd(unsigned int* address, unsigned int val) {};
 
 
 #define saes_data(w) {\
@@ -52,15 +52,13 @@
 #define saes_u2(p)   saes_b2w(         p, saes_f3(p), saes_f2(p),          p)
 #define saes_u3(p)   saes_b2w(         p,          p, saes_f3(p), saes_f2(p))
 
-static __constant__  uint32_t saes_table[4][256] = { saes_data(saes_u0), saes_data(saes_u1), saes_data(saes_u2), saes_data(saes_u3) };
+static  __constant__  uint32_t saes_table[4][256] = { saes_data(saes_u0), saes_data(saes_u1), saes_data(saes_u2), saes_data(saes_u3) };
 
 
-
-typedef uint4 uint128m;
 #define GPU_DEBUG
 #define VERUS_KEY_SIZE 8832
 #define VERUS_KEY_SIZE128 552
-#define THREADS 128
+#define THREADS 64
 #define INNERLOOP 16
 
 #define AES2_EMU(s0, s1, rci) \
@@ -108,14 +106,33 @@ typedef uint4 uint128m;
   s1 = _mm_unpacklo_epi32_emu(s2, s3); \
   s2 = _mm_unpackhi_epi32_emu(s1, tmp); 
 
+typedef struct case_struct {
+	uint32_t *case_array[8];
+} main_case_s;
 
 __host__ void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id);
 
 
-__global__ void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce, uint128m * d_key_input, uint128m * d_mid, uint32_t *d_fix_r, uint32_t *d_fix_rex);
-__global__ void verus_gpu_final(uint32_t threads, uint32_t startNonce, uint32_t *resNonce, uint128m * d_key_input, const  uint128m * d_mid);
-__global__ void verus_extra_gpu_prepare(const uint32_t threads, uint128m * d_key_input);
-__global__ void verus_extra_gpu_fix(const uint32_t threads, uint128m * d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex);
+__global__ void verus_gpu_hash(uint32_t threads, uint32_t startNonce, uint32_t *resNonce, uint4 * d_key_input, uint4 * d_mid, uint32_t *d_fix_r, uint32_t *d_fix_rex);
+__global__ void verus_gpu_final(uint32_t threads, uint32_t startNonce, uint32_t *resNonce, uint4 * d_key_input, const  uint4 * d_mid);
+__global__ void verus_extra_gpu_prepare(const uint32_t threads, uint4 * d_key_input);
+__global__ void verus_extra_gpu_fix(const uint32_t threads, uint4 * d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex);
+__global__ void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+__global__ void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 
 
 static uint32_t *d_nonces[MAX_GPUS];
@@ -124,60 +141,188 @@ static uint32_t *d_fix_randex[MAX_GPUS];
 static uint4 *d_long_keys[MAX_GPUS];
 
 static uint4 *d_mid[MAX_GPUS];
-
-static cudaStream_t streams[MAX_GPUS];
-static uint8_t run[MAX_GPUS];
-
-__device__ __constant__ uint128m vkey[VERUS_KEY_SIZE128];
-__device__ __constant__ uint128m blockhash_half[4];
+static main_case_s main_case_struct_p[MAX_GPUS];
+static main_case_s main_case_dest[MAX_GPUS];
+static uint32_t *d_case_totals[MAX_GPUS];
+__device__ __constant__ uint4 vkey[VERUS_KEY_SIZE128];
+__device__ __constant__ uint4 blockhash_half[4];
 __device__ __constant__ uint32_t ptarget[8];
 
+static cudaStream_t streams[MAX_GPUS][8];
 __host__
 void verus_init(int thr_id, uint32_t throughput)
 {
 	//cudaFuncSetCacheConfig(verus_gpu_hash, cudaFuncCachePreferL1);
+	//	printf("start of verus_init\n");
 	CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 1 * sizeof(uint32_t)));
 
 	CUDA_SAFE_CALL(cudaMalloc(&d_long_keys[thr_id], throughput * VERUS_KEY_SIZE));
 	CUDA_SAFE_CALL(cudaMalloc(&d_mid[thr_id], throughput * 16));
 	CUDA_SAFE_CALL(cudaMalloc(&d_fix_rand[thr_id], throughput * sizeof(uint32_t) * 32));
 	CUDA_SAFE_CALL(cudaMalloc(&d_fix_randex[thr_id], throughput * sizeof(uint32_t) * 32));
+	for (int i = 0; i < 8; i++)
+	{
+		CUDA_SAFE_CALL(cudaMalloc(&main_case_struct_p[thr_id].case_array[i], throughput * sizeof(uint32_t)));
+	}
+	for (int i = 0; i < 8; i++)
+	{
+		CUDA_SAFE_CALL(cudaMalloc(&main_case_dest[thr_id].case_array[i], throughput * sizeof(uint32_t)));
+	}
 
+	CUDA_SAFE_CALL(cudaMalloc(&d_case_totals[thr_id], sizeof(uint32_t) * 8));
+	//	printf("send of verus_init\n");
+	for (int i = 0; i < 10; i++)
+	cudaStreamCreate(&streams[thr_id][i]);
 };
 
 __host__
 void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput)
 {
+
+	//	printf("start of veruse_setblocks\n");
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, (void**)pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, (void**)blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(vkey, (void**)lkey, VERUS_KEY_SIZE * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
 	dim3 grid2(throughput);
-	verus_extra_gpu_prepare << <grid2, 128 >> > (0, d_long_keys[thr_id]); //setup global mem with lots of keys	
-
+	//verus_extra_gpu_prepare << <grid2, 128 >> > (0, d_long_keys[thr_id]); //setup global mem with lots of keys	
+																		  //	printf("end of veruse_setblocks\n");
 };
-__host__
-void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *resNonces)
+
+#define THREADS2 128
+
+__global__ 
+void copythings(uint32_t threads, main_case_s d_main_case, main_case_s d_main_case_dest)
 {
+
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	if (thread < threads) {
+#pragma unroll 8
+		for (int i = 0; i < 8; i++)
+			 d_main_case_dest.case_array[i][thread] = d_main_case.case_array[i][thread] ;
+
+	}
+
+
+}
+
+
+
+__host__
+void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *resNonces, uint32_t startcase)
+{
+	//printf("start of verus)hash\n");
+
 	cudaMemset(d_nonces[thr_id], 0xff, 1 * sizeof(uint32_t));
 	const uint32_t threadsperblock = THREADS;
-	const uint32_t threadsperblock2 = 256;
+	const uint32_t threadsperblock256 = 256;
 
-	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
-	dim3 grid3((threads + threadsperblock2 - 1) / threadsperblock2);
-	dim3 grid2(threads);
+	dim3 grid_final((threads + threadsperblock256 - 1) / threadsperblock256);
+	dim3 grid_fix(threads);
 	dim3 block(threadsperblock);
 
+	uint32_t case_totals[8];
+	startcase >>= 2;
+	verus_extra_gpu_prepare << <grid_fix, 128 >> > (0, d_long_keys[thr_id]);
+	//printf("startcase = %x, \t threads = %d\n", startcase, threads);
+	for (int i = 0; i < 8; i++) {
 
-	if (run[thr_id] == 0) {
-		cudaStreamCreate(&streams[thr_id]);
-		run[thr_id] = 1;
+		if (i == startcase)
+			case_totals[i] = threads;
+		else
+			case_totals[i] = 0;
+		
+
 	}
-	//	verus_extra_gpu_prepare << <grid2, 128 >> > (0, d_long_keys[thr_id]); //setup global mem with lots of keys	
-	verus_gpu_hash << <grid, block, 0, streams[thr_id] >> >(threads, startNonce, d_nonces[thr_id], d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id]);
-	verus_gpu_final << <grid3, 256, 0, streams[thr_id] >> >(threads, startNonce, d_nonces[thr_id], d_long_keys[thr_id], d_mid[thr_id]);
-	verus_extra_gpu_fix << <grid2, 32, 0, streams[thr_id] >> > (0, d_long_keys[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id]); //setup global mem with lots of keys	
-	CUDA_SAFE_CALL(cudaMemcpy(resNonces, d_nonces[thr_id], 1 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	//CUDA_SAFE_CALL(cudaMemcpy(d_case_totals[thr_id], case_totals, 8 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
 
+
+	for (int i = 0; i < 32; i++)
+	{
+
+		CUDA_SAFE_CALL(cudaMemset(d_case_totals[thr_id], 0, 8 * sizeof(uint32_t)));
+		//cudaDeviceSynchronize();
+
+		if (case_totals[5] > 0) {
+
+			dim3 grid5((case_totals[5] + threadsperblock - 1) / threadsperblock);
+			verus_case_14 << <grid5, block, 0, streams[thr_id][0] >> > (case_totals[5], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[0] > 0) {
+			//	printf("got to case 0, totals = %d, startnonce %d \n", case_totals[0], startNonce);
+
+			dim3 grid0((case_totals[0] + threadsperblock - 1) / threadsperblock);
+			verus_case_0 << <grid0, block, 0, streams[thr_id][1] >> > (case_totals[0], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[1] > 0) {
+			//printf("got to case 1, totals = %d\n", case_totals[1]);
+			dim3 grid1((case_totals[1] + threadsperblock - 1) / threadsperblock);
+			verus_case_4 << <grid1, block, 0, streams[thr_id][2] >> > (case_totals[1], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[2] > 0) {
+			//	printf("got to case 2, totals = %d\n", case_totals[2]);
+			dim3 grid2((case_totals[2] + threadsperblock - 1) / threadsperblock);
+			verus_case_8 << <grid2, block, 0, streams[thr_id][3] >> > (case_totals[2], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[3] > 0) {
+
+			dim3 grid3((case_totals[3] + threadsperblock - 1) / threadsperblock);
+			verus_case_c << <grid3, block, 0, streams[thr_id][4] >> > (case_totals[3], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[4] > 0) {
+
+			dim3 grid4((case_totals[4] + threadsperblock - 1) / threadsperblock);
+			verus_case_10 << <grid4, block, 0, streams[thr_id][5] >> > (case_totals[4], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+
+
+		if (case_totals[6] > 0) {
+
+			dim3 grid6((case_totals[6] + threadsperblock - 1) / threadsperblock);
+			verus_case_18 << <grid6, block, 0, streams[thr_id][6] >> > (case_totals[6], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+
+		if (case_totals[7] > 0) {
+
+			dim3 grid7((case_totals[7] + threadsperblock - 1) / threadsperblock);
+			verus_case_1c << <grid7, block, 0, streams[thr_id][7] >> > (case_totals[7], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
+				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+		}
+		//	printf("loop=%d\n", i);
+
+		if (i < 31) {
+
+			
+			copythings << <grid_final, 256 >> > (threads, main_case_dest[thr_id], main_case_struct_p[thr_id]);
+
+
+		//	for (int i = 0; i < 8; i++)
+			//{
+		//		CUDA_SAFE_CALL(cudaMemcpy(main_case_struct_p[thr_id].case_array[i], main_case_dest[thr_id].case_array[i], threads * sizeof(uint32_t), cudaMemcpyDeviceToDevice));
+		//	}
+			CUDA_SAFE_CALL(cudaMemcpy(case_totals, d_case_totals[thr_id], 8 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+		}
+	}
+
+	//	exit(0);
+	//	verus_gpu_hash << <grid, block >> >(threads, startNonce, d_nonces[thr_id], d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id]);
+	verus_gpu_final << <grid_final, 256 >> >(threads, startNonce, d_nonces[thr_id], d_long_keys[thr_id], d_mid[thr_id]);
+	//verus_extra_gpu_fix << <grid_fix, 32 >> > (0, d_long_keys[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id]); //setup global mem with lots of keys	
+	CUDA_SAFE_CALL(cudaMemcpy(resNonces, d_nonces[thr_id], 1 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
+	//exit(0);
 };
 __device__ __forceinline__
 uint32_t xor3x(uint32_t a, uint32_t b, uint32_t c) {
@@ -190,9 +335,9 @@ uint32_t xor3x(uint32_t a, uint32_t b, uint32_t c) {
 	return result;
 }
 
-__device__  __forceinline__  uint128m _mm_xor_si128_emu(uint128m a, uint128m b)
+__device__  __forceinline__  uint4 _mm_xor_si128_emu(uint4 a, uint4 b)
 {
-	uint128m result;
+	uint4 result;
 	asm("xor.b32 %0, %1, %2; // xor1" : "=r"(result.x) : "r"(a.x), "r"(b.x));
 	asm("xor.b32 %0, %1, %2; // xor1" : "=r"(result.y) : "r"(a.y), "r"(b.y));
 	asm("xor.b32 %0, %1, %2; // xor1" : "=r"(result.z) : "r"(a.z), "r"(b.z));
@@ -215,7 +360,7 @@ __device__  __forceinline__  uint32_t XT4(uint32_t b)
 	return tmp2;
 }
 
-__device__  uint128m _mm_clmulepi64_si128_emu(uint128m ai, uint128m bi, int imm)
+__device__  uint4 _mm_clmulepi64_si128_emu(uint4 ai, uint4 bi)
 {
 	uint64_t a = ((uint64_t*)&ai)[0]; // (0xffffffffull & ai.x) | ((0x00000000ffffffffull & ai.y) << 32);//+ (imm & 1));
 
@@ -223,7 +368,7 @@ __device__  uint128m _mm_clmulepi64_si128_emu(uint128m ai, uint128m bi, int imm)
 
 									  //	uint8_t  i; 
 									  //	uint2 u[8];
-	uint64_t r[2]; //uint128m r;
+	uint64_t r[2]; //uint4 r;
 				   //uint2 tmp;
 
 	if (__popcll(a) > __popcll(b)) {
@@ -242,74 +387,10 @@ __device__  uint128m _mm_clmulepi64_si128_emu(uint128m ai, uint128m bi, int imm)
 		r[1] ^= b >> ((counter));
 	};
 
-
-	/*
-	//      XCHG(a,b);
-	u[0].x = 0; //000 x b u[0].y = 0;
-	}
-
-	u[1].x = bi.z; //001 x b u[1].y = bi.w; //001 x
-
-	u[2].x = u[1].x << 1; //010 x b
-	u[2].y = __funnelshift_l(u[1].x, u[1].y, 1); //010 x b
-
-	u[3].x = u[2].x ^ bi.z;  //011 x b
-	u[3].y = u[2].y ^ bi.w;  //011 x b
-
-	u[4].x = u[2].x << 1; //100 x b
-	u[4].y = __funnelshift_l(u[2].x, u[2].y, 1); //010 x b
-
-	u[5].x = u[4].x ^ bi.z;  //101 x b
-	u[5].y = u[4].y ^ bi.w;  //101 x b
-
-	u[6].x = u[3].x << 1; //110 x b
-	u[6].y = __funnelshift_l(u[3].x, u[3].y, 1); //010 x b
-
-	u[7].x = u[6].x ^ bi.z;  //111 x b
-	u[7].y = u[6].y ^ bi.w;
-	//Multiply
-	r.x = u[a & 7].x; //first window only affects lower word
-	r.y = u[a & 7].y;
-	r.z = r.w = 0;
-	//#pragma unroll
-	for (i = 3; i < 31; i += 3) {
-	tmp.x = u[a >> i & 7].x;
-	tmp.y = u[a >> i & 7].y;
-	r.x ^= (tmp.x << i) ;
-	r.y ^= __funnelshift_l(tmp.x, tmp.y, i);
-	r.z ^= (	tmp.y >> ( 32 - i));
-
-	}
-
-	//#pragma unroll
-	for (i = 33; i < 64; i += 3) {
-	tmp.x = u[a >> i & 7].x;
-	tmp.y = u[a >> i & 7].y;
-	r.y ^= (tmp.x << (i - 32 ));
-	r.z ^= __funnelshift_r(tmp.x, tmp.y, (64-i));
-	r.w ^=  tmp.y >> (64 - i);
-	}
-
-
-	if ((bi.w ) & 0x80000000)
-	{
-	uint32_t t0 = LIMMY_R(ai.x, ai.y, 1);
-	uint32_t t1 = ai.y >> 1;
-	r.z ^= (t0 & 0xDB6DB6DB); //0, 21x 110
-	r.w ^= (t1 & 0x36DB6DB6); //0x6DB6DB6DB6DB6DB6 -> 0x36DB6DB6DB6DB6DB after >>1
-	}
-	if ((bi.w ) &  0x40000000)
-	{
-	uint32_t t0 = LIMMY_R(ai.x, ai.y, 2);
-	uint32_t t1 = ai.y >> 2;
-	r.z ^= (t0 & 0x49249249); //0, 21x 100
-	r.w ^= (t1 & 0x12492492); //0x4924924924924924 -> 0x1249249249249249 after >>2
-	}
-	*/
-	return ((uint128m*)&r)[0];
+	return ((uint4*)&r)[0];
 }
 
-__device__  __forceinline__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
+__device__  __forceinline__ uint4 _mm_clmulepi64_si128_emu2(uint4 ai)
 {
 	uint64_t a = ((uint64_t*)&ai)[1];
 
@@ -318,7 +399,7 @@ __device__  __forceinline__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
 				//uint64_t two_s = 16; //2^s
 				//uint64_t smask = 15; //s 15 
 	uint8_t u[8];
-	uint128m r;
+	uint4 r;
 	uint64_t tmp;
 	//Precomputation
 
@@ -348,14 +429,14 @@ __device__  __forceinline__ uint128m _mm_clmulepi64_si128_emu2(uint128m ai)
 	return r;
 }
 
-#define _mm_load_si128_emu(p) (*(uint128m*)(p));
+#define _mm_load_si128_emu(p) (*(uint4*)(p));
 
 #define _mm_cvtsi128_si64_emu(p) (((int64_t *)&p)[0]);
 
 #define _mm_cvtsi128_si32_emu(p) (((int32_t *)&a)[0]);
 
 
-__device__  void _mm_unpackboth_epi32_emu(uint128m &a, uint128m &b)
+__device__  void _mm_unpackboth_epi32_emu(uint4 &a, uint4 &b)
 {
 	uint64_t value;
 
@@ -373,7 +454,7 @@ __device__  void _mm_unpackboth_epi32_emu(uint128m &a, uint128m &b)
 }
 
 
-__device__  __forceinline__ uint128m _mm_unpacklo_epi32_emu(uint128m a, uint128m b)
+__device__  __forceinline__ uint4 _mm_unpacklo_epi32_emu(uint4 a, uint4 b)
 {
 
 	//uint4 t;
@@ -385,7 +466,13 @@ __device__  __forceinline__ uint128m _mm_unpacklo_epi32_emu(uint128m a, uint128m
 	return a;
 }
 
-__device__  __forceinline__ uint128m _mm_unpackhi_epi32_emu(uint128m a, uint128m b)
+__device__  __forceinline__ uint4 _nop(uint4 a, uint4 b)
+{
+
+	return a;
+}
+
+__device__  __forceinline__ uint4 _mm_unpackhi_epi32_emu(uint4 a, uint4 b)
 {
 
 	//uint4 t;
@@ -397,8 +484,14 @@ __device__  __forceinline__ uint128m _mm_unpackhi_epi32_emu(uint128m a, uint128m
 	return b;
 }
 
+__device__ uint32_t get_byte(uint32_t a, uint32_t start_bit)
+{
+	uint32_t result;
+	asm("bfe.u32 %0, %1, %2, 8;" : "=r"(result) : "r"(a), "r"(start_bit));
+	return result;
+}
 
-__device__   __forceinline__ void aesenc(uint4 * __restrict__ ptr, const uint128m * __restrict__ key, uint32_t * __restrict__ t)
+__device__   __forceinline__ void aesenc(uint4 * __restrict__ ptr, const uint4 * __restrict__ key, uint32_t * __restrict__ t)
 {
 	//#define XT(x) (((x) << 1) ^ (((x) >> 7) ? 0x1b : 0))
 
@@ -408,28 +501,28 @@ __device__   __forceinline__ void aesenc(uint4 * __restrict__ ptr, const uint128
 	uint32_t x2 = ptr[0].z;
 	uint32_t x3 = ptr[0].w;
 
-	uint32_t y0 = t[x0 & 0xff]; x0 >>= 8;
-	uint32_t y1 = t[x1 & 0xff]; x1 >>= 8;
-	uint32_t y2 = t[x2 & 0xff]; x2 >>= 8;
-	uint32_t y3 = t[x3 & 0xff]; x3 >>= 8;
+	uint32_t y0 = t[get_byte(x0, 0)];
+	uint32_t y1 = t[get_byte(x1, 0)];
+	uint32_t y2 = t[get_byte(x2, 0)];
+	uint32_t y3 = t[get_byte(x3, 0)];
 	t += 256;
 
-	y0 ^= t[x1 & 0xff]; x1 >>= 8;
-	y1 ^= t[x2 & 0xff]; x2 >>= 8;
-	y2 ^= t[x3 & 0xff]; x3 >>= 8;
-	y3 ^= t[x0 & 0xff]; x0 >>= 8;
+	y0 ^= t[get_byte(x1, 8)];
+	y1 ^= t[get_byte(x2, 8)];
+	y2 ^= t[get_byte(x3, 8)];
+	y3 ^= t[get_byte(x0, 8)];
 	t += 256;
 
-	y0 ^= t[x2 & 0xff]; x2 >>= 8;
-	y1 ^= t[x3 & 0xff]; x3 >>= 8;
-	y2 ^= t[x0 & 0xff]; x0 >>= 8;
-	y3 ^= t[x1 & 0xff]; x1 >>= 8;
+	y0 ^= t[get_byte(x2, 16)];
+	y1 ^= t[get_byte(x3, 16)];
+	y2 ^= t[get_byte(x0, 16)];
+	y3 ^= t[get_byte(x1, 16)];
 	t += 256;
 
-	y0 ^= t[x3];
-	y1 ^= t[x0];
-	y2 ^= t[x1];
-	y3 ^= t[x2];
+	y0 ^= t[get_byte(x3, 24)];
+	y1 ^= t[get_byte(x0, 24)];
+	y2 ^= t[get_byte(x1, 24)];
+	y3 ^= t[get_byte(x2, 24)];
 
 	ptr[0].x = y0 ^ key[0].x;
 	ptr[0].y = y1 ^ key[0].y;
@@ -439,33 +532,34 @@ __device__   __forceinline__ void aesenc(uint4 * __restrict__ ptr, const uint128
 }
 
 
-__device__  __forceinline__ uint128m _mm_cvtsi32_si128_emu(uint32_t lo)
+__device__  __forceinline__ uint4 _mm_cvtsi32_si128_emu(uint32_t lo)
 {
-	uint128m result = { 0 };
+	uint4 result = { 0 };
 	result.x = lo;
 
 	return result;
 }
-__device__  __forceinline__ uint128m _mm_cvtsi64_si128_emu(uint64_t lo)
+__device__  __forceinline__ uint4 _mm_cvtsi64_si128_emu(uint64_t lo)
 {
-	uint128m result = { 0 };
+	uint4 result = { 0 };
 	((uint64_t *)&result)[0] = lo;
 	//((uint64_t *)&result)[1] = 0;
 	return result;
 }
-__device__  __forceinline__ uint128m _mm_set_epi64x_emu(uint64_t hi, uint64_t lo)
+__device__  __forceinline__ uint4 _mm_set_epi64x_emu(uint64_t hi, uint64_t lo)
 {
-	uint128m result;
+	uint4 result;
 	((uint64_t *)&result)[0] = lo;
 	((uint64_t *)&result)[1] = hi;
 	return result;
 }
-__device__ __forceinline__ uint128m _mm_shuffle_epi8_emu(uint128m b)
+
+__device__ __forceinline__ uint4 _mm_shuffle_epi8_emu(uint4 b)
 {
-	uint128m result = { 0 };
-	const uint128m M = { 0x2d361b00,0x415a776c,0xf5eec3d8,0x9982afb4 };
-	const uint128m Q = { 0x80808080, 0x80808080, 0x80808080, 0x80808080 };
-	const uint128m W = b & Q;
+	uint4 result = { 0 };
+	const uint4 M = { 0x2d361b00,0x415a776c,0xf5eec3d8,0x9982afb4 };
+	const uint4 Q = { 0x80808080, 0x80808080, 0x80808080, 0x80808080 };
+	const uint4 W = b & Q;
 
 
 #pragma unroll
@@ -482,10 +576,10 @@ __device__ __forceinline__ uint128m _mm_shuffle_epi8_emu(uint128m b)
 
 
 
-__device__  __forceinline__ uint128m _mm_srli_si128_emu(uint128m input, int imm8)
+__device__  __forceinline__ uint4 _mm_srli_si128_emu(uint4 input, int imm8)
 {
 	//we can cheat here as its an 8 byte shift just copy the 64bits
-	uint128m temp;
+	uint4 temp;
 	((uint64_t*)&temp)[0] = ((uint64_t*)&input)[1];
 	((uint64_t*)&temp)[1] = 0;
 
@@ -495,7 +589,7 @@ __device__  __forceinline__ uint128m _mm_srli_si128_emu(uint128m input, int imm8
 
 
 
-__device__  uint128m _mm_mulhrs_epi16_emu(uint128m _a, uint128m _b)
+__device__  uint4 _mm_mulhrs_epi16_emu(uint4 _a, uint4 _b)
 {
 	int16_t result[8];
 
@@ -510,467 +604,13 @@ __device__  uint128m _mm_mulhrs_epi16_emu(uint128m _a, uint128m _b)
 		//	result[i] = (int16_t)((((int32_t)(a[i]) * (int32_t)(b[i])) + 0x4000) >> 15);
 
 	}
-	return *(uint128m *)result;
+	return *(uint4 *)result;
 }
 
 
-__device__  void case_0(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc)
+__device__   __forceinline__  uint32_t haraka512_port_keyed2222(uint4 * __restrict__  in, uint4 * __restrict__  rc, uint32_t * __restrict__  sharedMemory1)
 {
-	const uint128m temp1 = prandex;
-
-	const uint128m temp2 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-
-
-	const uint128m add1 = _mm_xor_si128_emu(temp1, temp2);
-
-	const uint128m clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-	acc = _mm_xor_si128_emu(clprod1, acc);
-
-	const uint128m tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
-	const uint128m tempa2 = _mm_xor_si128_emu(tempa1, temp1);
-
-	const uint128m temp12 = prand;
-	prand = tempa2;
-
-
-	const uint128m temp22 = _mm_load_si128_emu(pbuf);
-	const uint128m add12 = _mm_xor_si128_emu(temp12, temp22);
-	const uint128m clprod12 = _mm_clmulepi64_si128_emu(add12, add12, 0x10);
-	acc = _mm_xor_si128_emu(clprod12, acc);
-
-	const uint128m tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
-	const uint128m tempb2 = _mm_xor_si128_emu(tempb1, temp12);
-	prandex = tempb2;
-
-}
-
-__device__ void case_4(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc)
-{
-	const uint128m temp1 = prand;
-	const uint128m temp2 = _mm_load_si128_emu(pbuf);
-	const uint128m add1 = _mm_xor_si128_emu(temp1, temp2);
-	const uint128m clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-	acc = _mm_xor_si128_emu(clprod1, acc);
-	const uint128m clprod2 = _mm_clmulepi64_si128_emu(temp2, temp2, 0x10);
-	acc = _mm_xor_si128_emu(clprod2, acc);
-
-	const uint128m tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
-	const uint128m tempa2 = _mm_xor_si128_emu(tempa1, temp1);
-
-	const uint128m temp12 = prandex;
-	prandex = tempa2;
-
-	const uint128m temp22 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-	const uint128m add12 = _mm_xor_si128_emu(temp12, temp22);
-	acc = _mm_xor_si128_emu(add12, acc);
-
-	const uint128m tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
-	const uint128m tempb2 = _mm_xor_si128_emu(tempb1, temp12);
-	prand = tempb2;
-}
-
-__device__  void case_8(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc)
-{
-	const uint128m temp1 = prandex;
-	const uint128m temp2 = _mm_load_si128_emu(pbuf);
-	const uint128m add1 = _mm_xor_si128_emu(temp1, temp2);
-	acc = _mm_xor_si128_emu(add1, acc);
-
-	const uint128m tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
-	const uint128m tempa2 = _mm_xor_si128_emu(tempa1, temp1);
-
-	const uint128m temp12 = prand;
-	prand = tempa2;
-
-	const uint128m temp22 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-	const uint128m add12 = _mm_xor_si128_emu(temp12, temp22);
-	const uint128m clprod12 = _mm_clmulepi64_si128_emu(add12, add12, 0x10);
-	acc = _mm_xor_si128_emu(clprod12, acc);
-	const uint128m clprod22 = _mm_clmulepi64_si128_emu(temp22, temp22, 0x10);
-	acc = _mm_xor_si128_emu(clprod22, acc);
-
-	const uint128m tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
-	const uint128m tempb2 = _mm_xor_si128_emu(tempb1, temp12);
-	prandex = tempb2;
-}
-
-__device__ void case_0c(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc)
-{
-	const uint128m temp1 = prand;
-	const uint128m temp2 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-	const uint128m add1 = _mm_xor_si128_emu(temp1, temp2);
-
-	// cannot be zero here
-	const int32_t divisor = ((uint32_t*)&selector)[0];
-
-	acc = _mm_xor_si128_emu(add1, acc);
-
-	int64_t dividend = _mm_cvtsi128_si64_emu(acc);
-	int64_t tmpmod = dividend % divisor;
-	const uint128m modulo = _mm_cvtsi32_si128_emu(tmpmod);
-	acc = _mm_xor_si128_emu(modulo, acc);
-
-	const uint128m tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
-	const uint128m tempa2 = _mm_xor_si128_emu(tempa1, temp1);
-	dividend &= 1;
-	if (dividend)
-	{
-		const uint128m temp12 = prandex;
-		prandex = tempa2;
-
-		const uint128m temp22 = _mm_load_si128_emu(pbuf);
-		const uint128m add12 = _mm_xor_si128_emu(temp12, temp22);
-		const uint128m clprod12 = _mm_clmulepi64_si128_emu(add12, add12, 0x10);
-		acc = _mm_xor_si128_emu(clprod12, acc);
-		const uint128m clprod22 = _mm_clmulepi64_si128_emu(temp22, temp22, 0x10);
-		acc = _mm_xor_si128_emu(clprod22, acc);
-
-		const uint128m tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
-		const uint128m tempb2 = _mm_xor_si128_emu(tempb1, temp12);
-		prand = tempb2;
-	}
-	else
-	{
-		const uint128m tempb3 = prandex;
-		prandex = tempa2;
-		prand = tempb3;
-	}
-}
-__device__ void case_10(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc, uint128m *rc, uint32_t prand_idx, uint32_t *sharedMemory1)
-{			// a few AES operations
-	
-	uint128m tmp;
-
-	uint128m temp1 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
-	uint128m temp2 = _mm_load_si128_emu(pbuf);
-
-	AES2_EMU(temp1, temp2, 0);
-	MIX2_EMU(temp1, temp2);
-
-
-	AES2_EMU(temp1, temp2, 4);
-	MIX2_EMU(temp1, temp2);
-
-	AES2_EMU(temp1, temp2, 8);
-	MIX2_EMU(temp1, temp2);
-
-
-	acc = _mm_xor_si128_emu(temp1, acc);
-	acc = _mm_xor_si128_emu(temp2, acc);
-
-	const uint128m tempa1 = prand;
-	const uint128m tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1);
-	const uint128m tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
-
-	const uint128m tempa4 = prandex;
-	prandex = tempa3;
-	prand = tempa4;
-}
-__device__ void case_14(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc, uint128m *randomsource, uint32_t prand_idx, uint32_t *sharedMemory1)
-{
-	// we'll just call this one the monkins loop, inspired by Chris
-	const uint128m *buftmp = pbuf - (((selector & 1) << 1) - 1);
-	uint128m tmp; // used by MIX2
-
-	uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
-	uint128m *rc = &randomsource[prand_idx];
-
-
-	uint64_t aesround = 0;
-	uint128m onekey;
-	uint64_t loop_c;
-
-	for (int i = 0; i<8; i++)
-	{
-		if (rounds <= 8) {
-			loop_c = selector & ((uint64_t)0x10000000 << rounds);
-			if (loop_c)
-			{
-				onekey = _mm_load_si128_emu(rc++);
-				const uint128m temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
-				const uint128m add1 = _mm_xor_si128_emu(onekey, temp2);
-				const uint128m clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-				acc = _mm_xor_si128_emu(clprod1, acc);
-			}
-			else
-			{
-				onekey = _mm_load_si128_emu(rc++);
-				uint128m temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
-
-				const uint64_t roundidx = aesround++ << 2;
-				AES2_EMU(onekey, temp2, roundidx);
-
-				MIX2_EMU(onekey, temp2);
-
-				acc = _mm_xor_si128_emu(onekey, acc);
-				acc = _mm_xor_si128_emu(temp2, acc);
-
-			}
-		}
-		(rounds--);
-	}
-
-	const uint128m tempa1 = (prand);
-	const uint128m tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1);
-	const uint128m tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
-
-	const uint128m tempa4 = (prandex);
-	prandex = tempa3;
-	prand = tempa4;
-}
-
-__device__ void  case_18(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc, uint128m *randomsource, uint32_t prand_idx, uint32_t *sharedMemory1)
-{
-
-	// we'll just call this one the monkins loop, inspired by Chris
-	const uint128m *buftmp = pbuf - (((selector & 1) << 1) - 1);
-	uint128m tmp; // used by MIX2
-
-	uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
-	uint128m *rc = &randomsource[prand_idx];
-
-
-	uint64_t aesround = 0;
-	uint128m onekey;
-	uint64_t loop_c;
-
-	for (int i = 0; i<8; i++)
-	{
-		if (rounds <= 8) {
-			loop_c = selector & ((uint64_t)0x10000000 << rounds);
-			if (loop_c)
-			{
-				onekey = _mm_load_si128_emu(rc++);
-				const uint128m temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
-				const uint128m add1 = _mm_xor_si128_emu(onekey, temp2);
-
-				const int32_t divisor = (uint32_t)selector;
-				const int64_t dividend = ((int64_t*)&add1)[0];
-				uint128m modulo = { 0 }; ((int32_t*)&modulo)[0] = (dividend % divisor);
-				acc = modulo ^ acc;
-
-			}
-			else
-			{
-				onekey = _mm_load_si128_emu(rc++);
-				uint128m temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
-				uint128m add1 = (onekey^ temp2);
-				uint128m clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-				uint128m clprod2 = _mm_mulhrs_epi16_emu(acc, clprod1);
-				acc = clprod2^ acc;
-			}
-		}
-		(rounds--);
-	}
-
-	const uint128m tempa3 = (prandex);
-	const uint128m tempa4 = _mm_xor_si128_emu(tempa3, acc);
-	prandex = tempa4;
-	prand = onekey;
-
-}
-
-__device__   void case_1c(uint128m &prand, uint128m &prandex, const  uint128m *pbuf,
-	uint64_t selector, uint128m &acc)
-{
-	const uint128m temp1 = _mm_load_si128_emu(pbuf);
-	const uint128m temp2 = (prandex);
-	const uint128m add1 = _mm_xor_si128_emu(temp1, temp2);
-	const uint128m clprod1 = _mm_clmulepi64_si128_emu(add1, add1, 0x10);
-	acc = _mm_xor_si128_emu(clprod1, acc);
-
-
-	const uint128m tempa1 = _mm_mulhrs_epi16_emu(acc, temp2);
-	const uint128m tempa2 = _mm_xor_si128_emu(tempa1, temp2);
-	const uint128m tempa3 = (prand);
-
-
-	prand = tempa2;
-
-	acc = _mm_xor_si128_emu(tempa3, acc);
-
-	const uint128m tempb1 = _mm_mulhrs_epi16_emu(acc, tempa3);
-	const uint128m tempb2 = _mm_xor_si128_emu(tempb1, tempa3);
-	prandex = tempb2;
-}
-
-#define PRE2			selector = _mm_cvtsi128_si64_emu(acc);\
-			if (i > 0) {\
-				prand_idx = ((acc.x >> 5) & 511);\
-				prandex_idx = ((acc.y) & 511);\
-				prand = randomsource[prand_idx];\
-				prandex = randomsource[prandex_idx];\
-			}\
-			pbuf = buf + (acc.x & 3);\
-			case_v = selector & 0x1cu;
-
-__device__ uint128m __verusclmulwithoutreduction64alignedrepeatgpu(uint128m * __restrict__ randomsource, uint128m *  __restrict__  buf,
-	uint32_t *  __restrict__ sharedMemory1, uint32_t *  __restrict__ d_fix_r, uint32_t *  __restrict__ d_fix_rex)
-{
-	
-	uint128m const *pbuf;
-	//keyMask >>= 4;
-	uint128m acc = vkey[513];
-	buf[0] = buf[0] ^ buf[2];
-	buf[1] = buf[1] ^ buf[3];
-
-	// divide key mask by 32 from bytes to uint128m
-
-	uint16_t prand_idx, prandex_idx;
-	uint64_t selector;
-	uint128m prand;
-	uint128m prandex;
-	prand_idx = ((acc.x >> 5) & 511);
-	prandex_idx = ((acc.y) & 511);
-
-	prand = vkey[prand_idx];
-	prandex = vkey[prandex_idx];
-	//#pragma unroll
-	int i = 0; uint8_t g = 0;
-			uint8_t case_v;
-#define PRE			selector = _mm_cvtsi128_si64_emu(acc);\
-			if (i > 0) {\
-				prand_idx = ((acc.x >> 5) & 511);\
-				prandex_idx = ((acc.y) & 511);\
-				prand = randomsource[prand_idx];\
-				prandex = randomsource[prandex_idx];\
-			}\
-			pbuf = buf + (acc.x & 3);\
-			case_v = selector & 0x1cu;
-			PRE
-				do
-				{
-					
-					
-					if (g  != 0 ) {
-						
-
-						__syncthreads();
-					
-						if (((case_v == 0x14)))
-						{
-							case_14(prand, prandex, pbuf, selector, acc, randomsource, prand_idx, sharedMemory1);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-					}
-					else
-					{
-						if ((case_v == 0x10))
-						{
-							uint128m *rc = &randomsource[prand_idx];
-							case_10(prand, prandex, pbuf, selector, acc, rc, prand_idx, sharedMemory1);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-						}
-						if (case_v == 0)
-						{
-
-							case_0(prand, prandex, pbuf, selector, acc);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-						if (case_v == 4)
-						{
-							case_4(prand, prandex, pbuf, selector, acc);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-						}
-						if (case_v == 8)
-						{
-							case_8(prand, prandex, pbuf, selector, acc);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-						if (case_v == 0xc)
-						{
-							case_0c(prand, prandex, pbuf, selector, acc);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-
-
-
-
-
-						if (case_v == 0x18)
-						{
-							case_18(prand, prandex, pbuf, selector, acc, randomsource, prand_idx, sharedMemory1);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-						if (case_v == 0x1c)
-						{
-							case_1c(prand, prandex, pbuf, selector, acc);
-							d_fix_r[i] = prand_idx;
-							d_fix_rex[i] = prandex_idx;
-							randomsource[prand_idx] = prand;
-							randomsource[prandex_idx] = prandex;
-							i++;
-							if (i == 32)break;
-							PRE
-
-						}
-					}
-			g++;
-			g &= 1;
-		
-	} while (i != 32);
-
-	return acc;
-}
-
-
-__device__   __forceinline__  uint32_t haraka512_port_keyed2222(uint128m * __restrict__  in, uint128m * __restrict__  rc, uint32_t * __restrict__  sharedMemory1)
-{
-	uint128m s1, s2, s3, s4, tmp;
+	uint4 s1, s2, s3, s4, tmp;
 
 	s1 = in[0];
 	s2 = in[1];
@@ -996,97 +636,760 @@ __device__   __forceinline__  uint32_t haraka512_port_keyed2222(uint128m * __res
 
 }
 
-__device__   __forceinline__ uint64_t precompReduction64(uint128m A) {
+__device__   __forceinline__ uint64_t precompReduction64(uint4 A) {
 
 
-	//static const uint128m M = { 0x2d361b00,0x415a776c,0xf5eec3d8,0x9982afb4 };
-	// const uint128m tmp = { 27 };
+	//static const uint4 M = { 0x2d361b00,0x415a776c,0xf5eec3d8,0x9982afb4 };
+	// const uint4 tmp = { 27 };
 	// A.z = 0;
 	//tmp.x = 27u;
-	uint128m Q2 = _mm_clmulepi64_si128_emu2(A);
-	uint128m Q3 = _mm_shuffle_epi8_emu(_mm_srli_si128_emu(Q2, 8));
+	uint4 Q2 = _mm_clmulepi64_si128_emu2(A);
+	uint4 Q3 = _mm_shuffle_epi8_emu(_mm_srli_si128_emu(Q2, 8));
 
-	//uint128m Q4 = _mm_xor_si128_emu(Q2, A);
-	uint128m final;
+	//uint4 Q4 = _mm_xor_si128_emu(Q2, A);
+	uint4 final;
 	final.x = xor3(A.x, Q2.x, Q3.x);
 	final.y = xor3(A.y, Q2.y, Q3.y);
 
 	return _mm_cvtsi128_si64_emu(final);/// WARNING: HIGH 64 BITS SHOULD BE ASSUMED TO CONTAIN GARBAGE
 }
 
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[0][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] =  s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511); 
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+		//printf("iteration %d got past%d acc %08x  %08x  %08x\n",iteration, nonce, randomsource[123].x, prand.x, prandex.x);
+
+		uint4 temp1 = prandex;
+
+		uint4 temp2 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
+		uint4 add1 = _mm_xor_si128_emu(temp1, temp2);
+		uint4 clprod1 = _mm_clmulepi64_si128_emu(add1, add1);
+		acc = _mm_xor_si128_emu(clprod1, acc);
+
+		uint4 tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
+		uint4 tempa2 = _mm_xor_si128_emu(tempa1, temp1);
+
+		uint4 temp12 = prand;
+		prand = tempa2;
+
+		uint4 temp22 = _mm_load_si128_emu(pbuf);
+		uint4 add12 = _mm_xor_si128_emu(temp12, temp22);
+		uint4 clprod12 = _mm_clmulepi64_si128_emu(add12, add12);
+		acc = _mm_xor_si128_emu(clprod12, acc);
+
+		uint4 tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
+		uint4 tempb2 = _mm_xor_si128_emu(tempb1, temp12);
+		prandex = tempb2;
+
+		//  //d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
 
 
 __global__ __launch_bounds__(THREADS, 1)
-void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t * __restrict__ resNonce,
-	uint128m * __restrict__ d_key_input, uint128m * __restrict__ d_mid, uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex)
+void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
-	uint128m mid; // , biddy[VERUS_KEY_SIZE128];
-	uint128m s[4];
-
-	const uint32_t nounce = startNonce + thread;
-
-	__shared__ uint32_t sharedMemory1[4][256];
-	__shared__ uint32_t sharedrand[32 * THREADS];
-	__shared__ uint32_t sharedrandex[32 * THREADS];
-
-	//uint32_t save_rand[32] = { 0 };
-	//uint32_t save_randex[32] = { 0 };
-
-	s[0] = blockhash_half[0];
-	s[1] = blockhash_half[1];
-	s[2] = blockhash_half[2];
-	s[3] = blockhash_half[3];
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
 
 
-	sharedMemory1[0][threadIdx.x] = saes_table[0][threadIdx.x];// copy sbox to shared mem
-//	sharedMemory1[0][threadIdx.x + 64] = saes_table[0][threadIdx.x + 64];// copy sbox to shared mem
-	sharedMemory1[0][threadIdx.x + 128] = saes_table[0][threadIdx.x + 128];// copy sbox to shared mem
-//	sharedMemory1[0][threadIdx.x + 192] = saes_table[0][threadIdx.x + 192];// copy sbox to shared mem
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[1][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
 
-	sharedMemory1[1][threadIdx.x] = saes_table[1][threadIdx.x];// copy sbox to shared mem/
-//	sharedMemory1[1][threadIdx.x + 64] = saes_table[1][threadIdx.x + 64];// copy sbox to shared mem
-	sharedMemory1[1][threadIdx.x + 128] = saes_table[1][threadIdx.x + 128];// copy sbox to shared mem
-//	sharedMemory1[1][threadIdx.x + 192] = saes_table[1][threadIdx.x + 192];// copy sbox to shared mem
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
 
-	sharedMemory1[2][threadIdx.x] = saes_table[2][threadIdx.x];// copy sbox to shared mem
-//	sharedMemory1[2][threadIdx.x + 64] = saes_table[2][threadIdx.x + 64];// copy sbox to shared mem
-	sharedMemory1[2][threadIdx.x + 128] = saes_table[2][threadIdx.x + 128];// copy sbox to shared mem
-//	sharedMemory1[2][threadIdx.x + 192] = saes_table[2][threadIdx.x + 192];// copy sbox to shared mem
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
 
-	sharedMemory1[3][threadIdx.x] = saes_table[3][threadIdx.x];// copy sbox to shared mem
-//	sharedMemory1[3][threadIdx.x + 64] = saes_table[3][threadIdx.x + 64];// copy sbox to shared mem
-	sharedMemory1[3][threadIdx.x + 128] = saes_table[3][threadIdx.x + 128];// copy sbox to shared mem
-//	sharedMemory1[3][threadIdx.x + 192] = saes_table[3][threadIdx.x + 192];// copy sbox to shared mem
+		uint4 temp1 = prand;
+		uint4 temp2 = _mm_load_si128_emu(pbuf);
+		uint4 add1 = _mm_xor_si128_emu(temp1, temp2);
+		uint4 clprod1 = _mm_clmulepi64_si128_emu(add1, add1);
+		acc = _mm_xor_si128_emu(clprod1, acc);
+		uint4 clprod2 = _mm_clmulepi64_si128_emu(temp2, temp2);
+		acc = _mm_xor_si128_emu(clprod2, acc);
 
+		uint4 tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
+		uint4 tempa2 = _mm_xor_si128_emu(tempa1, temp1);
+
+		uint4 temp12 = prandex;
+		prandex = tempa2;
+
+		uint4 temp22 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
+		uint4 add12 = _mm_xor_si128_emu(temp12, temp22);
+		acc = _mm_xor_si128_emu(add12, acc);
+
+		uint4 tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
+		uint4 tempb2 = _mm_xor_si128_emu(tempb1, temp12);
+		prand = tempb2;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[2][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+
+		uint4 temp1 = prandex;
+		uint4 temp2 = _mm_load_si128_emu(pbuf);
+		uint4 add1 = _mm_xor_si128_emu(temp1, temp2);
+		acc = _mm_xor_si128_emu(add1, acc);
+
+		uint4 tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
+		uint4 tempa2 = _mm_xor_si128_emu(tempa1, temp1);
+
+		uint4 temp12 = prand;
+		prand = tempa2;
+
+		uint4 temp22 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
+		uint4 add12 = _mm_xor_si128_emu(temp12, temp22);
+		uint4 clprod12 = _mm_clmulepi64_si128_emu(add12, add12);
+		acc = _mm_xor_si128_emu(clprod12, acc);
+		uint4 clprod22 = _mm_clmulepi64_si128_emu(temp22, temp22);
+		acc = _mm_xor_si128_emu(clprod22, acc);
+
+		uint4 tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
+		uint4 tempb2 = _mm_xor_si128_emu(tempb1, temp12);
+		prandex = tempb2;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[3][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+		//if (nonce == 1)
+		//	printf("[i]=%d \t acc = %08x, prand_idx = %d\t, prandex_idx = %d \t prand %08x, prandex %08x case 3\n", iteration, acc.x, prand_idx, prandex_idx, prand.x, prandex.x);
+
+		const uint4 temp1 = prand;
+		const uint4 temp2 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
+		const uint4 add1 = _mm_xor_si128_emu(temp1, temp2);
+
+		// cannot be zero here
+		const int32_t divisor = ((uint32_t*)&selector)[0];
+
+		acc = _mm_xor_si128_emu(add1, acc);
+
+		int64_t dividend = _mm_cvtsi128_si64_emu(acc);
+		int64_t tmpmod = dividend % divisor;
+		const uint4 modulo = _mm_cvtsi32_si128_emu(tmpmod);
+		acc = _mm_xor_si128_emu(modulo, acc);
+
+		const uint4 tempa1 = _mm_mulhrs_epi16_emu(acc, temp1);
+		const uint4 tempa2 = _mm_xor_si128_emu(tempa1, temp1);
+		dividend &= 1;
+		if (dividend)
+		{
+			const uint4 temp12 = prandex;
+			prandex = tempa2;
+
+			const uint4 temp22 = _mm_load_si128_emu(pbuf);
+			const uint4 add12 = _mm_xor_si128_emu(temp12, temp22);
+			const uint4 clprod12 = _mm_clmulepi64_si128_emu(add12, add12);
+			acc = _mm_xor_si128_emu(clprod12, acc);
+			const uint4 clprod22 = _mm_clmulepi64_si128_emu(temp22, temp22);
+			acc = _mm_xor_si128_emu(clprod22, acc);
+
+			const uint4 tempb1 = _mm_mulhrs_epi16_emu(acc, temp12);
+			const uint4 tempb2 = _mm_xor_si128_emu(tempb1, temp12);
+			prand = tempb2;
+		}
+		else
+		{
+			const uint4 tempb3 = prandex;
+			prandex = tempa2;
+			prand = tempb3;
+		}
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+
+		//	if (nonce == 0)
+		//		printf("[i]=%d \t acc = %08x, prand_idx = %d\t, prandex_idx = %d \t prand %08x, prandex %08x case 3\n", iteration, acc.x, prand_idx, prandex_idx, prand.x, prandex.x);
+
+
+	}
+
+}
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	__shared__ uint32_t shared_m[4][256];
+
+	for (int i = threadIdx.x; i < 256; i += blockDim.x) {
+
+		shared_m[0][i] = saes_table[0][ i];
+		shared_m[1][i] = saes_table[1][ i];
+		shared_m[2][ i] = saes_table[2][i];
+		shared_m[3][i] = saes_table[3][i];
+	}
 	__syncthreads();
-	s[2].x = nounce;
+
+	uint32_t *sharedMemory1 = shared_m[0];
+
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[4][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+
+		uint4 *rc = &randomsource[prand_idx];
+
+		uint4 tmp;
+
+		uint4 temp1 = _mm_load_si128_emu(pbuf - (((selector & 1) << 1) - 1));
+		uint4 temp2 = _mm_load_si128_emu(pbuf);
+
+		AES2_EMU(temp1, temp2, 0);
+		MIX2_EMU(temp1, temp2);
+
+
+		AES2_EMU(temp1, temp2, 4);
+		MIX2_EMU(temp1, temp2);
+
+		AES2_EMU(temp1, temp2, 8);
+		MIX2_EMU(temp1, temp2);
+
+
+		acc = _mm_xor_si128_emu(temp1, acc);
+		acc = _mm_xor_si128_emu(temp2, acc);
+
+		const uint4 tempa1 = prand;
+		const uint4 tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1); selector = _mm_cvtsi128_si64_emu(acc);
+		const uint4 tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
+
+		const uint4 tempa4 = prandex;
+		prandex = tempa3;
+		prand = tempa4;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	__shared__ uint32_t shared_m[4][256];
+
+	for (int i = threadIdx.x; i < 256; i += blockDim.x) {
+
+		shared_m[0][i] = saes_table[0][i];
+		shared_m[1][i] = saes_table[1][i];
+		shared_m[2][i] = saes_table[2][i];
+		shared_m[3][i] = saes_table[3][i];
+	}
+	__syncthreads();
+
+	uint32_t *sharedMemory1 = shared_m[0];
+
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[5][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+
+		// we'll just call this one the monkins loop, inspired by Chris
+		const uint4 *buftmp = pbuf - (((selector & 1) << 1) - 1);
+		uint4 tmp; // used by MIX2
+
+		uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
+		uint4 *rc = &randomsource[prand_idx];
+
+
+		uint64_t aesround = 0;
+		uint4 onekey;
+		uint64_t loop_c;
+
+
+		for (int i = 0; i<8; i++)
+		{
+			if (rounds <= 8) {
+				loop_c = selector & ((uint64_t)0x10000000 << rounds);
+				if (loop_c)
+				{
+					onekey = _mm_load_si128_emu(rc++);
+					const uint4 temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
+					const uint4 add1 = _mm_xor_si128_emu(onekey, temp2);
+					const uint4 clprod1 = _mm_clmulepi64_si128_emu(add1, add1);
+					acc = _mm_xor_si128_emu(clprod1, acc);
+				}
+				else
+				{
+					onekey = _mm_load_si128_emu(rc++);
+					uint4 temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
+
+					const uint64_t roundidx = aesround++ << 2;
+					AES2_EMU(onekey, temp2, roundidx);
+
+					MIX2_EMU(onekey, temp2);
+
+					acc = _mm_xor_si128_emu(onekey, acc);
+					acc = _mm_xor_si128_emu(temp2, acc);
+
+				}
+
+				(rounds--);
+			}
+		}
+
+		const uint4 tempa1 = (prand);
+		const uint4 tempa2 = _mm_mulhrs_epi16_emu(acc, tempa1);
+		const uint4 tempa3 = _mm_xor_si128_emu(tempa1, tempa2);
+
+		const uint4 tempa4 = (prandex);
+		prandex = tempa3;
+		prand = tempa4;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[6][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
+
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+
+		// we'll just call this one the monkins loop, inspired by Chris
+		const uint4 *buftmp = pbuf - (((selector & 1) << 1) - 1);
+
+
+		uint64_t rounds = selector >> 61; // loop randomly between 1 and 8 times
+		uint4 *rc = &randomsource[prand_idx];
+
+		uint4 onekey;
+		uint64_t loop_c;
+
+		for (int i = 0; i<8; i++)
+		{
+			if (rounds <= 8) {
+				loop_c = selector & ((uint64_t)0x10000000 << rounds);
+				if (loop_c)
+				{
+					onekey = _mm_load_si128_emu(rc++);
+					const uint4 temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
+					const uint4 add1 = _mm_xor_si128_emu(onekey, temp2);
+
+					const int32_t divisor = (uint32_t)selector;
+					const int64_t dividend = ((int64_t*)&add1)[0];
+					uint4 modulo = { 0 }; ((int32_t*)&modulo)[0] = (dividend % divisor);
+					acc = modulo ^ acc;
+
+				}
+				else
+				{
+					onekey = _mm_load_si128_emu(rc++);
+					uint4 temp2 = _mm_load_si128_emu(rounds & 1 ? buftmp : pbuf);
+					uint4 add1 = (onekey^ temp2);
+					uint4 clprod1 = _mm_clmulepi64_si128_emu(add1, add1);
+					uint4 clprod2 = _mm_mulhrs_epi16_emu(acc, clprod1);
+					acc = clprod2^ acc;
+				}
+			}
+			(rounds--);
+		}
+
+		const uint4 tempa3 = (prandex);
+		const uint4 tempa4 = _mm_xor_si128_emu(tempa3, acc);
+		prandex = tempa4;
+		prand = onekey;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+	}
+
+}
+
+
+__global__ __launch_bounds__(THREADS, 1)
+void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
+	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+{
+	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+	if (thread < threads) {
+		uint4 s[4];
+		s[0] = blockhash_half[0];
+		s[1] = blockhash_half[1];
+		s[2] = blockhash_half[2];
+		s[3] = blockhash_half[3];
+
+		uint32_t nonce = (iteration == 0) ? thread : d_main_case.case_array[7][thread]; //first iteration nonce is just 0..throughput
+		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
+		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
+		s[2].x = nonce + startNonce;
+		s[0] = s[0] ^ s[2];
+		s[1] = s[1] ^ s[3];
+		// divide key mask by 32 from bytes to uint4
 
 
 
-	mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1[0], sharedrand + (threadIdx.x * 32), sharedrandex + (threadIdx.x * 32));
-	mid.x ^= 0x00010000;
-	d_mid[thread] = mid;
+		uint16_t prand_idx, prandex_idx;
+		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
+		uint4 const *pbuf = s + (selector & 3);
+		uint4 prand;
+		uint4 prandex;
+		prand_idx = ((acc.x >> 5) & 511);
+		prandex_idx = ((acc.y) & 511);
+
+		prand = randomsource[prand_idx];
+		prandex = randomsource[prandex_idx];
+		//	if(nonce ==1)
+		//		printf("[i]=%d \t acc = %08x, prand_idx = %d\t, prandex_idx = %d \t prand %08x, prandex %08x case 7\n", iteration, acc.x, prand_idx, prandex_idx, prand.x, prandex.x);
+
+		//	if (nonce == 0)
+		//		printf("pbuf %08x%08x%08x%08x\n",s[0].x, s[1].x, s[2].x, s[3].x);
+
+		const uint4 temp1 = _mm_load_si128_emu(pbuf);
+		const uint4 temp2 = (prandex);
+		const uint4 add1 = _mm_xor_si128_emu(temp1, temp2);
+		const uint4 clprod1 = _mm_clmulepi64_si128_emu(add1, add1);
+		acc = _mm_xor_si128_emu(clprod1, acc);
+		//	if (nonce == 0)
+		//		printf("acc = %08x",acc.x);
+
+
+		const uint4 tempa1 = _mm_mulhrs_epi16_emu(acc, temp2);
+		const uint4 tempa2 = _mm_xor_si128_emu(tempa1, temp2);
+		const uint4 tempa3 = (prand);
+
+
+		prand = tempa2;
+
+		acc = _mm_xor_si128_emu(tempa3, acc);
+		//	if (nonce == 0)
+		//		printf("[i]=%d \t acc = %08x, prand_idx = %d\t, prandex_idx = %d \t prand %08x, prandex %08x\n", iteration, acc.x, prand_idx, prandex_idx, prand.x, prandex.x);
+
+		const uint4 tempb1 = _mm_mulhrs_epi16_emu(acc, tempa3);
+		const uint4 tempb2 = _mm_xor_si128_emu(tempb1, tempa3);
+		prandex = tempb2;
+
+		//d_fix_r[(nonce * 32) + iteration] = prand_idx;
+		//d_fix_rex[(nonce * 32) + iteration] = prandex_idx;
+		randomsource[prand_idx] = prand;
+		randomsource[prandex_idx] = prandex;
+		d_mid[nonce] = acc;
+		selector = acc.x & 0x1c;
+		selector >>= 2;
+		uint32_t location = atomicAdd(&totals[selector], 1);
+		d_case_dest.case_array[selector][location] = nonce;
+
+		//	if (nonce == 0)
+		//	printf("[i]=%d \t acc = %08x, prand_idx = %d\t, prandex_idx = %d \t prand %08x, prandex %08x\n", iteration, acc.x, prand_idx, prandex_idx, prand.x, prandex.x);
+
+	}
+
+}
+/*
+__global__ __launch_bounds__(THREADS, 1)
+void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input,
+uint4 * __restrict__ d_mid, uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex)
+{
+const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
+uint4 mid; // , biddy[VERUS_KEY_SIZE128];
+uint4 s[4];
+
+const uint32_t nounce = startNonce + thread;
+
+__shared__ uint32_t sharedMemory1[4][256];
+__shared__ uint32_t sharedrand[32 * THREADS];
+__shared__ uint32_t sharedrandex[32 * THREADS];
+
+//uint32_t save_rand[32] = { 0 };
+//uint32_t save_randex[32] = { 0 };
+
+s[0] = blockhash_half[0];
+s[1] = blockhash_half[1];
+s[2] = blockhash_half[2];
+s[3] = blockhash_half[3];
+
+
+sharedMemory1[0][threadIdx.x] = saes_table[0][threadIdx.x];// copy sbox to shared mem
+sharedMemory1[0][threadIdx.x + 64] = saes_table[0][threadIdx.x + 64];// copy sbox to shared mem
+sharedMemory1[0][threadIdx.x + 128] = saes_table[0][threadIdx.x + 128];// copy sbox to shared mem
+sharedMemory1[0][threadIdx.x + 192] = saes_table[0][threadIdx.x + 192];// copy sbox to shared mem
+
+sharedMemory1[1][threadIdx.x] = saes_table[1][threadIdx.x];// copy sbox to shared mem
+sharedMemory1[1][threadIdx.x + 64] = saes_table[1][threadIdx.x + 64];// copy sbox to shared mem
+sharedMemory1[1][threadIdx.x + 128] = saes_table[1][threadIdx.x + 128];// copy sbox to shared mem
+sharedMemory1[1][threadIdx.x + 192] = saes_table[1][threadIdx.x + 192];// copy sbox to shared mem
+
+sharedMemory1[2][threadIdx.x] = saes_table[2][threadIdx.x];// copy sbox to shared mem
+sharedMemory1[2][threadIdx.x + 64] = saes_table[2][threadIdx.x + 64];// copy sbox to shared mem
+sharedMemory1[2][threadIdx.x + 128] = saes_table[2][threadIdx.x + 128];// copy sbox to shared mem
+sharedMemory1[2][threadIdx.x + 192] = saes_table[2][threadIdx.x + 192];// copy sbox to shared mem
+
+sharedMemory1[3][threadIdx.x] = saes_table[3][threadIdx.x];// copy sbox to shared mem
+sharedMemory1[3][threadIdx.x + 64] = saes_table[3][threadIdx.x + 64];// copy sbox to shared mem
+sharedMemory1[3][threadIdx.x + 128] = saes_table[3][threadIdx.x + 128];// copy sbox to shared mem
+sharedMemory1[3][threadIdx.x + 192] = saes_table[3][threadIdx.x + 192];// copy sbox to shared mem
+
+__syncthreads();
+s[2].x = nounce;
+
+
+
+mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1[0], sharedrand + (threadIdx.x * 32), sharedrandex + (threadIdx.x * 32));
+mid.x ^= 0x00010000;
+d_mid[thread] = mid;
 
 #pragma unroll
-	for (int i = 0; i < 32; i++)
-	{
-		d_fix_r[(thread * 32) + i] = sharedrand[(threadIdx.x * 32) + i];
-		d_fix_rex[(thread * 32) + i] = sharedrandex[(threadIdx.x * 32) + i];
-	}
+for (int i = 0; i < 32; i++)
+{
+d_fix_r[(thread * 32) + i] = sharedrand[(threadIdx.x * 32) + i];
+d_fix_rex[(thread * 32) + i] = sharedrandex[(threadIdx.x * 32) + i];
 }
+}*/
 __global__ __launch_bounds__(256, 1)
 void verus_gpu_final(const uint32_t threads, const uint32_t startNonce, uint32_t * __restrict__ resNonce,
-	uint128m * __restrict__  d_key_input, const uint128m * __restrict__ d_mid)
+	uint4 * __restrict__  d_key_input, const uint4 * __restrict__ d_mid)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
-	uint64_t acc = precompReduction64(d_mid[thread]);;
-	//uint128m wizz = d_mid[thread];
+
+	uint4 mid = d_mid[thread];
+	mid.x ^= 0x00010000;
+
+	uint64_t acc = precompReduction64(mid);
+	//uint4 wizz = d_mid[thread];
 
 	const uint32_t nounce = startNonce + thread;
 	uint32_t hash;
 
-	uint128m s[4];
+	uint4 s[4];
 	__shared__ uint32_t sharedMemory1[4][256];
 	//	sharedMemory1[threadIdx.x] = sbox[threadIdx.x];// copy sbox to shared mem
 	sharedMemory1[0][threadIdx.x] = saes_table[0][threadIdx.x];// copy sbox to shared mem
@@ -1125,7 +1428,7 @@ void verus_gpu_final(const uint32_t threads, const uint32_t startNonce, uint32_t
 };
 
 __global__ __launch_bounds__(128, 1)
-void verus_extra_gpu_prepare(const uint32_t threads, uint128m * d_key_input)
+void verus_extra_gpu_prepare(const uint32_t threads, uint4 * d_key_input)
 {
 
 	d_key_input[(blockIdx.x * VERUS_KEY_SIZE128) + threadIdx.x] = vkey[threadIdx.x];
@@ -1138,7 +1441,7 @@ void verus_extra_gpu_prepare(const uint32_t threads, uint128m * d_key_input)
 }
 
 __global__ __launch_bounds__(32, 1)
-void verus_extra_gpu_fix(const uint32_t threads, uint128m * __restrict__ d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex)
+void verus_extra_gpu_fix(const uint32_t threads, uint4 * __restrict__ d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex)
 {
 
 	d_key_input[(blockIdx.x * VERUS_KEY_SIZE128) + d_fix_r[(blockIdx.x * 32) + threadIdx.x]] = vkey[d_fix_r[(blockIdx.x * 32) + threadIdx.x]];

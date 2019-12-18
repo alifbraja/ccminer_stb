@@ -144,9 +144,9 @@ inline u128 _mm_cvtsi64_si128_emu(uint64_t lo)
 	return result;
 }
 
-inline int64_t _mm_cvtsi128_si64_emu(__m128i &a)
+inline int64_t _mm_cvtsi128_si64_emu(const __m128i &a)
 {
-	return *(int64_t *)&a;
+	return *(const int64_t *)&a;
 }
 
 inline int32_t _mm_cvtsi128_si32_emu(__m128i &a)
@@ -579,7 +579,7 @@ static __m128i __verusclmulwithoutreduction64alignedrepeat_port(__m128i *randoms
                     {
                         onekey = _mm_load_si128_emu(rc++);
                         const __m128i temp2 = _mm_load_si128_emu(rounds & 1 ? pbuf : buftmp);
-                        __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
+                        const __m128i add1 = _mm_xor_si128_emu(onekey, temp2);
                         // cannot be zero here, may be negative
                         const int32_t divisor = (uint32_t)selector;
                         const int64_t dividend = _mm_cvtsi128_si64_emu(add1);
