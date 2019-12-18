@@ -125,7 +125,7 @@ static void gpustatus(int thr_id)
 		char* card;
 
 		
-		cgpu->gpu_plimit = device_plimit[cgpu->gpu_id];
+	//	cgpu->gpu_plimit = device_plimit[cgpu->gpu_id];
 
 #ifdef USE_WRAPNVML
 		cgpu->has_monitoring = true;

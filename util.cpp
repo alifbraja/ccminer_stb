@@ -1693,8 +1693,8 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	card = "CPU";
 	cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
 
-	sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
-	sprintf(arch, "%d", (int) cgpu->gpu_arch);
+	//sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
+	//sprintf(arch, "%d", (int) cgpu->gpu_arch);
 	snprintf(driver, 32, "CUDA %d.%d %s", cuda_ver/1000, (cuda_ver%1000) / 10, driver_version);
 	driver[31] = '\0';
 
@@ -1704,8 +1704,8 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	json_object_set_new(val, "device", json_string(card));
 	json_object_set_new(val, "vendorid", json_string(vid));
 	json_object_set_new(val, "arch", json_string(arch));
-	json_object_set_new(val, "freq", json_integer(cgpu->gpu_clock/1000));
-	json_object_set_new(val, "memf", json_integer(cgpu->gpu_memclock/1000));
+	//json_object_set_new(val, "freq", json_integer(cgpu->gpu_clock/1000));
+	//json_object_set_new(val, "memf", json_integer(cgpu->gpu_memclock/1000));
 	json_object_set_new(val, "curr_freq", json_integer(cgpu->monitor.gpu_clock));
 	json_object_set_new(val, "curr_memf", json_integer(cgpu->monitor.gpu_memclock));
 	json_object_set_new(val, "power", json_integer(watts));

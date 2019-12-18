@@ -118,7 +118,7 @@ bool equi_stratum_set_target(struct stratum_ctx *sctx, json_t *params)
 
 bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 {
-	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime, *solution;
+	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime;
 	size_t coinb1_size, coinb2_size;
 	bool clean, ret = false;
 	int ntime, i, p=0;
@@ -128,9 +128,9 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	coinb1 = json_string_value(json_array_get(params, p++)); //merkle
 	coinb2 = json_string_value(json_array_get(params, p++)); //blank (reserved)
 	stime = json_string_value(json_array_get(params, p++));
-	nbits = json_string_value(json_array_get(params, p++)); p++;
+	nbits = json_string_value(json_array_get(params, p++));
 	clean = json_is_true(json_array_get(params, p)); p++;
-  solution = json_string_value(json_array_get(params, p));
+
 	if (!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
 	    strlen(prevhash) != 64 || strlen(version) != 8 ||
 	    strlen(coinb1) != 64 || strlen(coinb2) != 64 ||
@@ -177,10 +177,6 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 
 	hex2bin(sctx->job.nbits, nbits, 4);
 	hex2bin(sctx->job.ntime, stime, 4);
-// TODO, parse solution hex into nreward for future PBaaS merged mining support
-	if(solution) sctx->job.nreward[0] = 3; //verushash v2.1
-	else sctx->job.nreward[0] = 1;         // verushash v2
-
 	sctx->job.clean = clean;
 
 	sctx->job.diff = sctx->next_diff;

@@ -59,6 +59,7 @@ BOOL WINAPI ConsoleHandler(DWORD);
 #define HEAVYCOIN_BLKHDR_SZ		84
 #define MNR_BLKHDR_SZ 80
 
+//#include "nvml.h"
 #ifdef USE_WRAPNVML
 nvml_handle *hnvml = NULL;
 #endif
@@ -131,14 +132,13 @@ char * device_name[MAX_GPUS];
 short device_map[MAX_GPUS] = { 0 };
 long  device_sm[MAX_GPUS] = { 0 };
 short device_mpcount[MAX_GPUS] = { 0 };
-uint32_t gpus_intensity[MAX_GPUS] = { 0 };
-uint32_t device_gpu_clocks[MAX_GPUS] = { 0 };
-uint32_t device_mem_clocks[MAX_GPUS] = { 0 };
-int32_t device_mem_offsets[MAX_GPUS] = { 0 };
-uint32_t device_plimit[MAX_GPUS] = { 0 };
-uint8_t device_tlimit[MAX_GPUS] = { 0 };
-int8_t device_pstate[MAX_GPUS] = { -1, -1 };
-int32_t device_led[MAX_GPUS] = { -1, -1 };
+//uint32_t gpus_intensity[MAX_GPUS] = { 0 };
+//uint32_t device_gpu_clocks[MAX_GPUS] = { 0 };
+//uint32_t device_mem_clocks[MAX_GPUS] = { 0 };
+//int32_t device_mem_offsets[MAX_GPUS] = { 0 };
+//uint32_t device_plimit[MAX_GPUS] = { 0 };
+//int8_t device_pstate[MAX_GPUS] = { -1, -1 };
+//int32_t device_led[MAX_GPUS] = { -1, -1 };
 int opt_led_mode = 0;
 int opt_cudaschedule = -1;
 static bool opt_keep_clocks = false;
@@ -668,30 +668,13 @@ bool jobj_binary(const json_t *obj, const char *key, void *buf, size_t buflen)
 /* compute nbits to get the network diff */
 static void calc_network_diff(struct work *work)
 {
-	// sample for diff 43.281 : 1c05ea29
-	// todo: endian reversed on longpoll could be zr5 specific...
-	uint32_t nbits = have_longpoll ? work->data[18] : swab32(work->data[18]);
-	if (opt_algo == ALGO_LBRY) nbits = swab32(work->data[26]);
-	if (opt_algo == ALGO_DECRED) nbits = work->data[29];
-	if (opt_algo == ALGO_SIA) nbits = work->data[11]; // unsure if correct
+	
 	if (opt_algo == ALGO_EQUIHASH) {
 		net_diff = equi_network_diff(work);
 		return;
 	}
 
-	uint32_t bits = (nbits & 0xffffff);
-	int16_t shift = (swab32(nbits) & 0xff); // 0x1c = 28
-
-	uint64_t diffone = 0x0000FFFF00000000ull;
-	double d = (double)0x0000ffff / (double)bits;
-
-	for (int m=shift; m < 29; m++) d *= 256.0;
-	for (int m=29; m < shift; m++) d /= 256.0;
-	if (opt_algo == ALGO_DECRED && shift == 28) d *= 256.0;
-	if (opt_debug_diff)
-		applog(LOG_DEBUG, "net diff: %f -> shift %u, bits %08x", d, shift, bits);
-
-	net_diff = d;
+	
 }
 
 /* decode data from getwork (wallets and longpoll pools) */
@@ -743,7 +726,11 @@ static bool work_decode(const json_t *val, struct work *work)
 		return false;
 	}
 
-
+	if (opt_algo == ALGO_HEAVY) {
+		if (unlikely(!jobj_binary(val, "maxvote", &work->maxvote, sizeof(work->maxvote)))) {
+			work->maxvote = 2048;
+		}
+	} else work->maxvote = 0;
 
 	for (i = 0; i < adata_sz; i++)
 		work->data[i] = le32dec(work->data + i);
@@ -1611,7 +1598,6 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		//applog_hex(work->data, 180);
 	} else if (opt_algo == ALGO_EQUIHASH) {
 		memcpy(&work->data[9], sctx->job.coinbase, 32+32); // merkle [9..16] + reserved
-		memcpy(&work->maxvote, sctx->job.nreward, 1);  //TODO should create a new sruct member called version
 		work->data[25] = le32dec(sctx->job.ntime);
 		work->data[26] = le32dec(sctx->job.nbits);
 		memcpy(&work->data[27], sctx->xnonce1, sctx->xnonce1_size & 0x1F); // pool extranonce
@@ -1889,14 +1875,7 @@ static void *miner_thread(void *userdata)
 
 		uint32_t *nonceptr = (uint32_t*) (((char*)work.data) + wcmplen);
 
-		if (opt_algo == ALGO_WILDKECCAK) {
-			nonceptr = (uint32_t*) (((char*)work.data) + 1);
-			wcmpoft = 2;
-			wcmplen = 32;
-		} else if (opt_algo == ALGO_CRYPTOLIGHT || opt_algo == ALGO_CRYPTONIGHT) {
-			nonceptr = (uint32_t*) (((char*)work.data) + 39);
-			wcmplen = 39;
-		} else if (opt_algo == ALGO_EQUIHASH) {
+		if (opt_algo == ALGO_EQUIHASH) {
 			nonceptr = &work.data[EQNONCE_OFFSET]; // 27 is pool extranonce (256bits nonce space)
 			wcmplen = 4+32+32;
 		}
@@ -1972,35 +1951,7 @@ static void *miner_thread(void *userdata)
 			//nonceptr[0] = (UINT32_MAX / opt_n_threads) * thr_id; // 0 if single thr
 		}
 
-		if (opt_algo == ALGO_ZR5) {
-			// ignore pok/version header
-			wcmpoft = 1;
-			wcmplen -= 4;
-		}
-
-		if (opt_algo == ALGO_CRYPTONIGHT || opt_algo == ALGO_CRYPTOLIGHT) {
-			uint32_t oldpos = nonceptr[0];
-			bool nicehash = strstr(pools[cur_pooln].url, "nicehash") != NULL;
-			if (memcmp(&work.data[wcmpoft], &g_work.data[wcmpoft], wcmplen)) {
-				memcpy(&work, &g_work, sizeof(struct work));
-				if (!nicehash) nonceptr[0] = (rand()*4) << 24;
-				nonceptr[0] &=  0xFF000000u; // nicehash prefix hack
-				nonceptr[0] |= (0x00FFFFFFu / opt_n_threads) * thr_id;
-			}
-			// also check the end, nonce in the middle
-			else if (memcmp(&work.data[44/4], &g_work.data[0], 76-44)) {
-				memcpy(&work, &g_work, sizeof(struct work));
-			}
-			if (oldpos & 0xFFFF) {
-				if (!nicehash) nonceptr[0] = oldpos + 0x1000000u;
-				else {
-					uint32_t pfx = nonceptr[0] & 0xFF000000u;
-					nonceptr[0] = pfx | ((oldpos + 0x8000u) & 0xFFFFFFu);
-				}
-			}
-		}
-
-		else if (memcmp(&work.data[wcmpoft], &g_work.data[wcmpoft], wcmplen)) {
+		if (memcmp(&work.data[wcmpoft], &g_work.data[wcmpoft], wcmplen)) {
 			#if 0
 			if (opt_debug) {
 				for (int n=0; n <= (wcmplen-8); n+=8) {
@@ -2017,64 +1968,20 @@ static void *miner_thread(void *userdata)
 		} else
 			nonceptr[0]++; //??
 
-		if (opt_algo == ALGO_DECRED) {
-			// suprnova job_id check without data/target/height change...
-			if (check_stratum_jobs && strcmp(work.job_id, g_work.job_id)) {
-				pthread_mutex_unlock(&g_work_lock);
-				continue;
-			}
-
-			// use the full range per loop
-			nonceptr[0] = 0;
-			end_nonce = UINT32_MAX;
-			// and make an unique work (extradata)
-			nonceptr[1] += 1;
-			nonceptr[2] |= thr_id;
-
-		} else if (opt_algo == ALGO_EQUIHASH) {
+		if (opt_algo == ALGO_EQUIHASH) {
 			nonceptr[1]++;
-			nonceptr[2] |= thr_id;  //try  was nonceptr[1] |= thr_id << 24
+			nonceptr[2] |= thr_id;  //try  was nonceptr[1] |= thr_id << 24 monkins edit
 			//applog_hex(&work.data[27], 32);
-		} else if (opt_algo == ALGO_WILDKECCAK) {
-			//nonceptr[1] += 1;
-		} else if (opt_algo == ALGO_SIA) {
-			// suprnova job_id check without data/target/height change...
-			if (have_stratum && strcmp(work.job_id, g_work.job_id)) {
-				pthread_mutex_unlock(&g_work_lock);
-				work_done = true;
-				continue;
-			}
-			nonceptr[1] += opt_n_threads;
-			nonceptr[1] |= thr_id;
-			// range max
-			nonceptr[0] = 0;
-			end_nonce = UINT32_MAX;
-		} else if (opt_benchmark) {
-			// randomize work
-			nonceptr[-1] += 1;
-		}
+		} 
 
 		pthread_mutex_unlock(&g_work_lock);
 
 		// --benchmark [-a all]
-		if (opt_benchmark && bench_algo >= 0) {
-			//gpulog(LOG_DEBUG, thr_id, "loop %d", loopcnt);
-			if (loopcnt >= 3) {
-				if (!bench_algo_switch_next(thr_id) && thr_id == 0)
-				{
-					bench_display_results();
-					proper_exit(0);
-					break;
-				}
-				loopcnt = 0;
-			}
-		}
+		
 		loopcnt++;
 
 		// prevent gpu scans before a job is received
-		if (opt_algo == ALGO_SIA) nodata_check_oft = 7; // no stratum version
-		else if (opt_algo == ALGO_DECRED) nodata_check_oft = 4; // testnet ver is 0
-		else nodata_check_oft = 0;
+		nodata_check_oft = 0;
 		if (have_stratum && work.data[nodata_check_oft] == 0 && !opt_benchmark) {
 			sleep(1);
 			if (!thr_id) pools[cur_pooln].wait_time += 1;
@@ -2312,11 +2219,6 @@ static void *miner_thread(void *userdata)
 
 		work.valid_nonces = 0;
 
-		if (abort_flag)
-			break; // time to leave the mining loop...
-
-		if (work_restart[thr_id].restart)
-			continue;
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 
@@ -2342,17 +2244,7 @@ static void *miner_thread(void *userdata)
 		/* record scanhash elapsed time */
 		gettimeofday(&tv_end, NULL);
 
-		switch (opt_algo) {
-			// algos to migrate to replace pdata[21] by work.nonces[]
-			case ALGO_HEAVY:
-			case ALGO_SCRYPT:
-			case ALGO_SCRYPT_JANE:
-			//case ALGO_WHIRLPOOLX:
-				work.nonces[0] = nonceptr[0];
-				work.nonces[1] = nonceptr[2];
-		}
-
-
+		
 		if (rc > 0 && opt_debug)
 			applog(LOG_NOTICE, CL_CYN "found => %08x" CL_GRN " %08x", work.nonces[0], swab32(work.nonces[0]));
 		if (rc > 1 && opt_debug)
@@ -2369,13 +2261,7 @@ static void *miner_thread(void *userdata)
 
 			/* hashrate factors for some algos */
 			double rate_factor = 1.0;
-			switch (opt_algo) {
-				case ALGO_JACKPOT:
-				case ALGO_QUARK:
-					// to stay comparable to other ccminer forks or pools
-					rate_factor = 0.5;
-					break;
-			}
+			
 
 			/* store thread hashrate */
 			if (dtime > 0.0) {
@@ -2980,38 +2866,7 @@ void parse_arg(int key, char *arg)
 	case 'k':
 		//jim
 		break;
-	case 'i':
-		d = atof(arg);
-		v = (uint32_t) d;
-		if (v < 0 || v > 31)
-			show_usage_and_exit(1);
-		{
-			int n = 0;
-			int ngpus = 1;
-			uint32_t last = 0;
-			char * pch = strtok(arg,",");
-			while (pch != NULL) {
-				d = atof(pch);
-				v = (uint32_t) d;
-				if (v > 7) { /* 0 = default */
-					if ((d - v) > 0.0) {
-						uint32_t adds = (uint32_t)floor((d - v) * (1 << (v - 8))) * 256;
-						gpus_intensity[n] = (1 << v) + adds;
-						applog(LOG_INFO, "Adding %u threads to intensity %u, %u cuda threads",
-							adds, v, gpus_intensity[n]);
-					}
-					else if (gpus_intensity[n] != (1 << v)) {
-						gpus_intensity[n] = (1 << v);
-					}
-				}
-				last = gpus_intensity[n];
-				n++;
-				pch = strtok(NULL, ",");
-			}
-			while (n < MAX_GPUS)
-				gpus_intensity[n++] = last;
-		}
-		break;
+
 	case 'D':
 		opt_debug = true;
 		break;
@@ -3231,85 +3086,15 @@ void parse_arg(int key, char *arg)
 				device_bfactor[n++] = last;
 		}
 		break;
-	case 1070: /* --gpu-clock */
-		{
-			char *pch = strtok(arg,",");
-			int n = 0;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				device_gpu_clocks[dev_id] = atoi(pch);
-				pch = strtok(NULL, ",");
-			}
-		}
-		break;
-	case 1071: /* --mem-clock */
-		{
-			char *pch = strtok(arg,",");
-			int n = 0;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				if (*pch == '+' || *pch == '-')
-					device_mem_offsets[dev_id] = atoi(pch);
-				else
-					device_mem_clocks[dev_id] = atoi(pch);
-				need_nvsettings = true;
-				pch = strtok(NULL, ",");
-			}
-		}
-		break;
-	case 1072: /* --pstate */
-		{
-			char *pch = strtok(arg,",");
-			int n = 0;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				device_pstate[dev_id] = (int8_t) atoi(pch);
-				pch = strtok(NULL, ",");
-			}
-		}
-		break;
-	case 1073: /* --plimit */
-		{
-			char *pch = strtok(arg,",");
-			int n = 0;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				device_plimit[dev_id] = atoi(pch);
-				pch = strtok(NULL, ",");
-			}
-		}
-		break;
+	
+	
+	
+	
 	case 1074: /* --keep-clocks */
 		opt_keep_clocks = true;
 		break;
-	case 1075: /* --tlimit */
-		{
-			char *pch = strtok(arg,",");
-			int n = 0;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				device_tlimit[dev_id] = (uint8_t) atoi(pch);
-				pch = strtok(NULL, ",");
-			}
-		}
-		break;
-	case 1080: /* --led */
-		{
-			
-			char *pch = strtok(arg,",");
-			int n = 0, lastval, val;
-			while (pch != NULL && n < MAX_GPUS) {
-				int dev_id = device_map[n++];
-				char * p = strstr(pch, "0x");
-				val = p ? (int32_t) strtoul(p, NULL, 16) : atoi(pch);
-				
-				pch = strtok(NULL, ",");
-			}
-			if (lastval) while (n < MAX_GPUS) {
-				device_led[n++] = lastval;
-			}
-		}
-		break;
+	
+	
 	case 1005:
 		opt_benchmark = true;
 		want_longpoll = false;
@@ -3664,7 +3449,6 @@ int main(int argc, char *argv[])
 	if (!opt_quiet) {
 		const char* arch = is_x64() ? "64-bits" : "32-bits";
 
-
 		printf("  Originally based on Christian Buchner and Christian H. project\n");
 		printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 		printf("Verus donation address: REoPcdGXthL5yeTCrJtrQv5xhYTknbFbec  (monkins)\n");
@@ -3712,8 +3496,8 @@ int main(int argc, char *argv[])
 		device_interactive[i] = -1;
 		device_texturecache[i] = -1;
 		device_singlememory[i] = -1;
-		device_pstate[i] = -1;
-		device_led[i] = -1;
+		//device_pstate[i] = -1;
+		//device_led[i] = -1;
 	}
 
 	
@@ -3845,13 +3629,7 @@ int main(int argc, char *argv[])
 	// generally doesn't work well...
 	gpu_threads = max(gpu_threads, opt_n_threads / active_gpus);
 
-	if (opt_benchmark && opt_algo == ALGO_AUTO) {
-		bench_init(opt_n_threads);
-		for (int n=0; n < MAX_GPUS; n++) {
-			gpus_intensity[n] = 0; // use default
-		}
-		opt_autotune = false;
-	}
+
 
 #ifdef HAVE_SYSLOG_H
 	if (use_syslog)
@@ -3930,21 +3708,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-#ifdef USE_WRAPNVML
-	// to monitor gpu activitity during work, a thread is required
-	if (1) {
-		monitor_thr_id = opt_n_threads + 4;
-		thr = &thr_info[monitor_thr_id];
-		thr->id = monitor_thr_id;
-		thr->q = tq_new();
-		if (!thr->q)
-			return EXIT_CODE_SW_INIT_ERROR;
-		if (unlikely(pthread_create(&thr->pth, NULL, monitor_thread, thr))) {
-			applog(LOG_ERR, "Monitoring thread %d create failed", i);
-			return EXIT_CODE_SW_INIT_ERROR;
-		}
-	}
-#endif
+
 
 	/* start mining threads */
 	for (i = 0; i < opt_n_threads; i++) {
@@ -3953,7 +3717,7 @@ int main(int argc, char *argv[])
 		thr->id = i;
 		thr->gpu.thr_id = i;
 		thr->gpu.gpu_id = (uint8_t) device_map[i];
-		thr->gpu.gpu_arch = (uint16_t) device_sm[device_map[i]];
+		//thr->gpu.gpu_arch = (uint16_t) device_sm[device_map[i]];
 		thr->q = tq_new();
 		if (!thr->q)
 			return EXIT_CODE_SW_INIT_ERROR;
