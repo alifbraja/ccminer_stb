@@ -171,7 +171,7 @@ void verus_init(int thr_id, uint32_t throughput)
 
 	CUDA_SAFE_CALL(cudaMalloc(&d_case_totals[thr_id], sizeof(uint32_t) * 8));
 	//	printf("send of verus_init\n");
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 8; i++)
 	cudaStreamCreate(&streams[thr_id][i]);
 };
 
