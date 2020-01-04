@@ -24,6 +24,7 @@ extern "C"
 {
 //#include "haraka.h"
 #include "haraka_portable.h"
+#include "haraka.h"
 }
 
 enum
@@ -152,7 +153,7 @@ extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t 
 	memcpy(curBuf + 55, &intermediate, 8);
 	memcpy(curBuf + 63, &intermediate, 1);
 	intermediate &= 511;
-  haraka512_port_keyed(hash, curBuf, data_key + intermediate);
+  haraka512_keyed(hash, curBuf, data_key + intermediate);
 	FixKey(fixrand, fixrandex, data_key, data_key_master);
 }
 #ifdef _WIN32

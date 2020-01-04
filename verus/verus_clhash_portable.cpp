@@ -47,7 +47,7 @@
 //#include "arm_neon.h"
 
 #   include "SSE2NEON.h"
-#include "softaesnc.h"
+//#include "softaesnc.h"
 typedef int32x4_t __m128i;
 
 #endif //WIN32
@@ -73,14 +73,14 @@ FORCE_INLINE __m128i _mm_clmulepi64_si128_emu(const __m128i a, const __m128i &b,
 
 FORCE_INLINE __m128i _mm_mulhrs_epi16_emu(__m128i _a, __m128i _b)
 {
-	int16_t result[8];
-	int16_t *a = (int16_t*)&_a, *b = (int16_t*)&_b;
-	for (int i = 0; i < 8; i++)
-	{
-		result[i] = (int16_t)((((int32_t)(a[i]) * (int32_t)(b[i])) + 0x4000) >> 15);
-	}
+//	int16_t result[8];
+//	int16_t *a = (int16_t*)&_a, *b = (int16_t*)&_b;
+//	for (int i = 0; i < 8; i++)
+//	{
+//		result[i] = (int16_t)((((int32_t)(a[i]) * (int32_t)(b[i])) + 0x4000) >> 15);
+//	}
 
-	return *(__m128i *)result;
+	return vqrdmulhq_s16(_a,_b); //*(__m128i *)result;
 }
 
  __m128i _mm_set_epi64x_emu(uint64_t hi, uint64_t lo)
@@ -220,7 +220,7 @@ __m128i _mm_setr_epi8_emu(u_char c0, u_char c1, u_char c2, u_char c3, u_char c4,
 
  __m128i _mm_xor_si128_emu(__m128i a, __m128i b)
 {
-	return vreinterpretq_m128i_s32( veorq_s32(vreinterpretq_s32_m128i(a), vreinterpretq_s32_m128i(b)) );
+	return a^ b; //vreinterpretq_m128i_s32( veorq_s32(vreinterpretq_s32_m128i(a), vreinterpretq_s32_m128i(b)) );
 
 }
 
@@ -295,7 +295,7 @@ uint64_t precompReduction64_port(__m128i A) {
 	return _mm_cvtsi128_si64_emu(tmp);
 }
 
-FORCE_INLINE uint8x16_t _mm_aesenc_si128 (uint8x16_t a, uint8x16_t RoundKey)
+uint8x16_t _mm_aesenc_si128 (uint8x16_t a, uint8x16_t RoundKey)
 {
     return vaesmcq_u8(vaeseq_u8(a, (uint8x16_t){})) ^ RoundKey;
 }

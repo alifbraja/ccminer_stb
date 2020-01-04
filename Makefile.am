@@ -22,7 +22,7 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp \
 			  api.cpp hashlog.cpp stats.cpp sysinfos.cpp \
 			  equi/equi-stratum.cpp verus/verusscan.cpp  \
-			  verus/haraka_portable.c verus/verus_clhash_portable.cpp
+			  verus/haraka_portable.c verus/haraka.c verus/verus_clhash_portable.cpp
 
 
 
