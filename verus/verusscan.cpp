@@ -42,7 +42,7 @@ static bool init[MAX_GPUS] = { 0 };
 static u128 data_key[MAX_GPUS][VERUS_KEY_SIZE128] = { 0 }; // 552 required
 static __thread uint32_t throughput = 0;
 extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces, uint32_t startcase);
-extern void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput);
+extern void verus_setBlock(uint8_t blockf[64], uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput);
 extern void verus_init(int thr_id, uint32_t throughput);
 
 

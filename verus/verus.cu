@@ -59,7 +59,7 @@ static  __constant__  uint32_t saes_table[4][256] = { saes_data(saes_u0), saes_d
 #define VERUS_KEY_SIZE 8832
 #define VERUS_KEY_SIZE128 552
 #define THREADS 64
-#define INNERLOOP 16
+
 
 #define AES2_EMU(s0, s1, rci) \
   aesenc(&s0, &rc[rci],sharedMemory1); \
@@ -118,26 +118,24 @@ __global__ void verus_gpu_final(uint32_t threads, uint32_t startNonce, uint32_t 
 __global__ void verus_extra_gpu_prepare(const uint32_t threads, uint4 * d_key_input);
 __global__ void verus_extra_gpu_fix(const uint32_t threads, uint4 * d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex);
 __global__ void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 __global__ void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest);
 
 
 static uint32_t *d_nonces[MAX_GPUS];
-static uint32_t *d_fix_rand[MAX_GPUS];
-static uint32_t *d_fix_randex[MAX_GPUS];
 static uint4 *d_long_keys[MAX_GPUS];
 
 static uint4 *d_mid[MAX_GPUS];
@@ -146,6 +144,7 @@ static main_case_s main_case_dest[MAX_GPUS];
 static uint32_t *d_case_totals[MAX_GPUS];
 __device__ __constant__ uint4 vkey[VERUS_KEY_SIZE128];
 __device__ __constant__ uint4 blockhash_half[4];
+__device__ __constant__ uint4 blockhash_half2[4];
 __device__ __constant__ uint32_t ptarget[8];
 
 static cudaStream_t streams[MAX_GPUS][8];
@@ -158,8 +157,7 @@ void verus_init(int thr_id, uint32_t throughput)
 
 	CUDA_SAFE_CALL(cudaMalloc(&d_long_keys[thr_id], throughput * VERUS_KEY_SIZE));
 	CUDA_SAFE_CALL(cudaMalloc(&d_mid[thr_id], throughput * 16));
-	CUDA_SAFE_CALL(cudaMalloc(&d_fix_rand[thr_id], throughput * sizeof(uint32_t) * 32));
-	CUDA_SAFE_CALL(cudaMalloc(&d_fix_randex[thr_id], throughput * sizeof(uint32_t) * 32));
+
 	for (int i = 0; i < 8; i++)
 	{
 		CUDA_SAFE_CALL(cudaMalloc(&main_case_struct_p[thr_id].case_array[i], throughput * sizeof(uint32_t)));
@@ -172,25 +170,30 @@ void verus_init(int thr_id, uint32_t throughput)
 	CUDA_SAFE_CALL(cudaMalloc(&d_case_totals[thr_id], sizeof(uint32_t) * 8));
 	//	printf("send of verus_init\n");
 	for (int i = 0; i < 8; i++)
-	cudaStreamCreate(&streams[thr_id][i]);
+		cudaStreamCreate(&streams[thr_id][i]);
 };
 
 __host__
-void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput)
+void verus_setBlock(uint8_t blockf[64], uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput)
 {
 
 	//	printf("start of veruse_setblocks\n");
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(ptarget, (void**)pTargetIn, 8 * sizeof(uint32_t), 0, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half2, (void**)blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
+	
+	for(int i=16;i<32;i++)
+	blockf[i] = blockf[i] ^ blockf[i+32];
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(blockhash_half, (void**)blockf, 64 * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
+
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(vkey, (void**)lkey, VERUS_KEY_SIZE * sizeof(uint8_t), 0, cudaMemcpyHostToDevice));
 	dim3 grid2(throughput);
 	//verus_extra_gpu_prepare << <grid2, 128 >> > (0, d_long_keys[thr_id]); //setup global mem with lots of keys	
-																		  //	printf("end of veruse_setblocks\n");
+	//	printf("end of veruse_setblocks\n");main_case_struct_p[thr_id]
 };
 
 #define THREADS2 128
 
-__global__ 
+__global__
 void copythings(uint32_t threads, main_case_s d_main_case, main_case_s d_main_case_dest)
 {
 
@@ -199,7 +202,7 @@ void copythings(uint32_t threads, main_case_s d_main_case, main_case_s d_main_ca
 	if (thread < threads) {
 #pragma unroll 8
 		for (int i = 0; i < 8; i++)
-			 d_main_case_dest.case_array[i][thread] = d_main_case.case_array[i][thread] ;
+			d_main_case_dest.case_array[i][thread] = d_main_case.case_array[i][thread];
 
 	}
 
@@ -231,59 +234,62 @@ void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *res
 			case_totals[i] = threads;
 		else
 			case_totals[i] = 0;
-		
+
 
 	}
 	//CUDA_SAFE_CALL(cudaMemcpy(d_case_totals[thr_id], case_totals, 8 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-
-
+	main_case_s *case_pointer[2];
+	case_pointer[0] = &main_case_struct_p[thr_id];
+	case_pointer[1] = &main_case_dest[thr_id];
+	int b, c;
 	for (int i = 0; i < 32; i++)
 	{
-
+		b = i & 1;
+		c = !(i & 1);
 		CUDA_SAFE_CALL(cudaMemset(d_case_totals[thr_id], 0, 8 * sizeof(uint32_t)));
 		//cudaDeviceSynchronize();
 
 		if (case_totals[5] > 0) {
 
 			dim3 grid5((case_totals[5] + threadsperblock - 1) / threadsperblock);
-			verus_case_14 << <grid5, block, 0, streams[thr_id][0] >> > (case_totals[5], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_14 << <grid5, block, 0, streams[thr_id][0] >> > (case_totals[5], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[0] > 0) {
 			//	printf("got to case 0, totals = %d, startnonce %d \n", case_totals[0], startNonce);
 
 			dim3 grid0((case_totals[0] + threadsperblock - 1) / threadsperblock);
-			verus_case_0 << <grid0, block, 0, streams[thr_id][1] >> > (case_totals[0], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_0 << <grid0, block, 0, streams[thr_id][1] >> > (case_totals[0], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[1] > 0) {
 			//printf("got to case 1, totals = %d\n", case_totals[1]);
 			dim3 grid1((case_totals[1] + threadsperblock - 1) / threadsperblock);
-			verus_case_4 << <grid1, block, 0, streams[thr_id][2] >> > (case_totals[1], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_4 << <grid1, block, 0, streams[thr_id][2] >> > (case_totals[1], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[2] > 0) {
 			//	printf("got to case 2, totals = %d\n", case_totals[2]);
 			dim3 grid2((case_totals[2] + threadsperblock - 1) / threadsperblock);
-			verus_case_8 << <grid2, block, 0, streams[thr_id][3] >> > (case_totals[2], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_8 << <grid2, block, 0, streams[thr_id][3] >> > (case_totals[2], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[3] > 0) {
 
 			dim3 grid3((case_totals[3] + threadsperblock - 1) / threadsperblock);
-			verus_case_c << <grid3, block, 0, streams[thr_id][4] >> > (case_totals[3], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_c << <grid3, block, 0, streams[thr_id][4] >> > (case_totals[3], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[4] > 0) {
 
 			dim3 grid4((case_totals[4] + threadsperblock - 1) / threadsperblock);
-			verus_case_10 << <grid4, block, 0, streams[thr_id][5] >> > (case_totals[4], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_10 << <grid4, block, 0, streams[thr_id][5] >> > (case_totals[4], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 
@@ -291,30 +297,20 @@ void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t *res
 		if (case_totals[6] > 0) {
 
 			dim3 grid6((case_totals[6] + threadsperblock - 1) / threadsperblock);
-			verus_case_18 << <grid6, block, 0, streams[thr_id][6] >> > (case_totals[6], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_18 << <grid6, block, 0, streams[thr_id][6] >> > (case_totals[6], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
 
 		if (case_totals[7] > 0) {
 
 			dim3 grid7((case_totals[7] + threadsperblock - 1) / threadsperblock);
-			verus_case_1c << <grid7, block, 0, streams[thr_id][7] >> > (case_totals[7], startNonce, d_long_keys[thr_id], d_mid[thr_id], d_fix_rand[thr_id], d_fix_randex[thr_id],
-				i, main_case_struct_p[thr_id], d_case_totals[thr_id], main_case_dest[thr_id]);
+			verus_case_1c << <grid7, block, 0, streams[thr_id][7] >> > (case_totals[7], startNonce, d_long_keys[thr_id], d_mid[thr_id], 
+				i, case_pointer[b][0], d_case_totals[thr_id], case_pointer[c][0]);
 		}
-		//	printf("loop=%d\n", i);
-
-		if (i < 31) {
-
-			
-			copythings << <grid_final, 256 >> > (threads, main_case_dest[thr_id], main_case_struct_p[thr_id]);
 
 
-		//	for (int i = 0; i < 8; i++)
-			//{
-		//		CUDA_SAFE_CALL(cudaMemcpy(main_case_struct_p[thr_id].case_array[i], main_case_dest[thr_id].case_array[i], threads * sizeof(uint32_t), cudaMemcpyDeviceToDevice));
-		//	}
+		if (i < 31) 
 			CUDA_SAFE_CALL(cudaMemcpy(case_totals, d_case_totals[thr_id], 8 * sizeof(uint32_t), cudaMemcpyDeviceToHost));
-		}
 	}
 
 	//	exit(0);
@@ -608,7 +604,7 @@ __device__  uint4 _mm_mulhrs_epi16_emu(uint4 _a, uint4 _b)
 }
 
 
-__device__   __forceinline__  uint32_t haraka512_port_keyed2222(uint4 * __restrict__  in, uint4 * __restrict__  rc, uint32_t * __restrict__  sharedMemory1)
+__device__   __forceinline__  uint32_t haraka512_port_keyed(uint4 * __restrict__  in, uint4 * __restrict__  rc, uint32_t * __restrict__  sharedMemory1)
 {
 	uint4 s1, s2, s3, s4, tmp;
 
@@ -656,7 +652,7 @@ __device__   __forceinline__ uint64_t precompReduction64(uint4 A) {
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -670,8 +666,8 @@ void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 		uint4 acc = (iteration == 0) ? vkey[513] : d_mid[nonce];
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
-		s[0] =  s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		s[0] = s[0] ^ s[2];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 		uint16_t prand_idx, prandex_idx;
 		uint64_t selector = _mm_cvtsi128_si64_emu(acc);
@@ -679,7 +675,7 @@ void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 		uint4 prand;
 		uint4 prandex;
 		prand_idx = ((acc.x >> 5) & 511);
-		prandex_idx = ((acc.y) & 511); 
+		prandex_idx = ((acc.y) & 511);
 
 		prand = randomsource[prand_idx];
 		prandex = randomsource[prandex_idx];
@@ -723,7 +719,7 @@ void verus_case_0(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -739,7 +735,7 @@ void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -790,7 +786,7 @@ void verus_case_4(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -806,7 +802,7 @@ void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -857,7 +853,7 @@ void verus_case_8(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -873,7 +869,7 @@ void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -949,7 +945,7 @@ void verus_case_c(const uint32_t threads, const uint32_t startNonce, uint4 * __r
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 
@@ -957,9 +953,9 @@ void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __
 
 	for (int i = threadIdx.x; i < 256; i += blockDim.x) {
 
-		shared_m[0][i] = saes_table[0][ i];
-		shared_m[1][i] = saes_table[1][ i];
-		shared_m[2][ i] = saes_table[2][i];
+		shared_m[0][i] = saes_table[0][i];
+		shared_m[1][i] = saes_table[1][i];
+		shared_m[2][i] = saes_table[2][i];
 		shared_m[3][i] = saes_table[3][i];
 	}
 	__syncthreads();
@@ -979,7 +975,7 @@ void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -1037,7 +1033,7 @@ void verus_case_10(const uint32_t threads, const uint32_t startNonce, uint4 * __
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 
@@ -1067,7 +1063,7 @@ void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -1148,7 +1144,7 @@ void verus_case_14(const uint32_t threads, const uint32_t startNonce, uint4 * __
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -1164,7 +1160,7 @@ void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 		uint16_t prand_idx, prandex_idx;
@@ -1238,7 +1234,7 @@ void verus_case_18(const uint32_t threads, const uint32_t startNonce, uint4 * __
 
 __global__ __launch_bounds__(THREADS, 1)
 void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input, uint4 * __restrict__ d_mid,
-	uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex, uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
+	 uint32_t iteration, main_case_s  d_main_case, uint32_t *totals, main_case_s  d_case_dest)
 {
 	const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	if (thread < threads) {
@@ -1253,7 +1249,7 @@ void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __
 		uint4 *randomsource = &d_key_input[VERUS_KEY_SIZE128 * nonce];
 		s[2].x = nonce + startNonce;
 		s[0] = s[0] ^ s[2];
-		s[1] = s[1] ^ s[3];
+		//s[1] = s[1] ^ s[3];
 		// divide key mask by 32 from bytes to uint4
 
 
@@ -1314,66 +1310,7 @@ void verus_case_1c(const uint32_t threads, const uint32_t startNonce, uint4 * __
 	}
 
 }
-/*
-__global__ __launch_bounds__(THREADS, 1)
-void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint4 * __restrict__ d_key_input,
-uint4 * __restrict__ d_mid, uint32_t * __restrict__  d_fix_r, uint32_t *__restrict__  d_fix_rex)
-{
-const uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
-uint4 mid; // , biddy[VERUS_KEY_SIZE128];
-uint4 s[4];
 
-const uint32_t nounce = startNonce + thread;
-
-__shared__ uint32_t sharedMemory1[4][256];
-__shared__ uint32_t sharedrand[32 * THREADS];
-__shared__ uint32_t sharedrandex[32 * THREADS];
-
-//uint32_t save_rand[32] = { 0 };
-//uint32_t save_randex[32] = { 0 };
-
-s[0] = blockhash_half[0];
-s[1] = blockhash_half[1];
-s[2] = blockhash_half[2];
-s[3] = blockhash_half[3];
-
-
-sharedMemory1[0][threadIdx.x] = saes_table[0][threadIdx.x];// copy sbox to shared mem
-sharedMemory1[0][threadIdx.x + 64] = saes_table[0][threadIdx.x + 64];// copy sbox to shared mem
-sharedMemory1[0][threadIdx.x + 128] = saes_table[0][threadIdx.x + 128];// copy sbox to shared mem
-sharedMemory1[0][threadIdx.x + 192] = saes_table[0][threadIdx.x + 192];// copy sbox to shared mem
-
-sharedMemory1[1][threadIdx.x] = saes_table[1][threadIdx.x];// copy sbox to shared mem
-sharedMemory1[1][threadIdx.x + 64] = saes_table[1][threadIdx.x + 64];// copy sbox to shared mem
-sharedMemory1[1][threadIdx.x + 128] = saes_table[1][threadIdx.x + 128];// copy sbox to shared mem
-sharedMemory1[1][threadIdx.x + 192] = saes_table[1][threadIdx.x + 192];// copy sbox to shared mem
-
-sharedMemory1[2][threadIdx.x] = saes_table[2][threadIdx.x];// copy sbox to shared mem
-sharedMemory1[2][threadIdx.x + 64] = saes_table[2][threadIdx.x + 64];// copy sbox to shared mem
-sharedMemory1[2][threadIdx.x + 128] = saes_table[2][threadIdx.x + 128];// copy sbox to shared mem
-sharedMemory1[2][threadIdx.x + 192] = saes_table[2][threadIdx.x + 192];// copy sbox to shared mem
-
-sharedMemory1[3][threadIdx.x] = saes_table[3][threadIdx.x];// copy sbox to shared mem
-sharedMemory1[3][threadIdx.x + 64] = saes_table[3][threadIdx.x + 64];// copy sbox to shared mem
-sharedMemory1[3][threadIdx.x + 128] = saes_table[3][threadIdx.x + 128];// copy sbox to shared mem
-sharedMemory1[3][threadIdx.x + 192] = saes_table[3][threadIdx.x + 192];// copy sbox to shared mem
-
-__syncthreads();
-s[2].x = nounce;
-
-
-
-mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1[0], sharedrand + (threadIdx.x * 32), sharedrandex + (threadIdx.x * 32));
-mid.x ^= 0x00010000;
-d_mid[thread] = mid;
-
-#pragma unroll
-for (int i = 0; i < 32; i++)
-{
-d_fix_r[(thread * 32) + i] = sharedrand[(threadIdx.x * 32) + i];
-d_fix_rex[(thread * 32) + i] = sharedrandex[(threadIdx.x * 32) + i];
-}
-}*/
 __global__ __launch_bounds__(256, 1)
 void verus_gpu_final(const uint32_t threads, const uint32_t startNonce, uint32_t * __restrict__ resNonce,
 	uint4 * __restrict__  d_key_input, const uint4 * __restrict__ d_mid)
@@ -1403,10 +1340,10 @@ void verus_gpu_final(const uint32_t threads, const uint32_t startNonce, uint32_t
 
 
 
-	s[0] = blockhash_half[0];
-	s[1] = blockhash_half[1];
-	s[2] = blockhash_half[2];
-	s[3] = blockhash_half[3];
+	s[0] = blockhash_half2[0];
+	s[1] = blockhash_half2[1];
+	s[2] = blockhash_half2[2];
+	s[3] = blockhash_half2[3];
 	__syncthreads();
 
 	((uint32_t *)&s)[8] = nounce;
@@ -1416,8 +1353,8 @@ void verus_gpu_final(const uint32_t threads, const uint32_t startNonce, uint32_t
 	//uint64_t mask = 8191 >> 4;
 	acc &= 511;
 
-	//haraka512_port_keyed((unsigned char*)hash, (const unsigned char*)s, (const unsigned char*)(biddy + mask), sharedMemory1, nounce);
-	hash = haraka512_port_keyed2222(s, (&d_key_input[VERUS_KEY_SIZE128 * thread] + acc), sharedMemory1[0]);
+
+	hash = haraka512_port_keyed(s, (&d_key_input[VERUS_KEY_SIZE128 * thread] + acc), sharedMemory1[0]);
 	if (hash < ptarget[7]) {
 
 		resNonce[0] = nounce;
@@ -1440,11 +1377,3 @@ void verus_extra_gpu_prepare(const uint32_t threads, uint4 * d_key_input)
 
 }
 
-__global__ __launch_bounds__(32, 1)
-void verus_extra_gpu_fix(const uint32_t threads, uint4 * __restrict__ d_key_input, uint32_t *d_fix_r, uint32_t *d_fix_rex)
-{
-
-	d_key_input[(blockIdx.x * VERUS_KEY_SIZE128) + d_fix_r[(blockIdx.x * 32) + threadIdx.x]] = vkey[d_fix_r[(blockIdx.x * 32) + threadIdx.x]];
-	d_key_input[(blockIdx.x * VERUS_KEY_SIZE128) + d_fix_rex[(blockIdx.x * 32) + threadIdx.x]] = vkey[d_fix_rex[(blockIdx.x * 32) + threadIdx.x]];
-
-}
