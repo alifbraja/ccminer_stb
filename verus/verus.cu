@@ -114,7 +114,7 @@ __global__ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce
 	uint128m * __restrict__ d_key_input);
 __global__ void verus_extra_gpu_prepare(const uint32_t threads, uint128m * d_key_input);
 
-
+#define TOTAL_MAX (1 << 17)
 
 static uint32_t *d_nonces[MAX_GPUS];
 static uint4 *d_long_keys[MAX_GPUS];
@@ -131,7 +131,7 @@ void verus_init(int thr_id, uint32_t throughput)
 	//cudaFuncSetCacheConfig(verus_gpu_hash, cudaFuncCachePreferEqual);
 	CUDA_SAFE_CALL(cudaMalloc(&d_nonces[thr_id], 1 * sizeof(uint32_t)));
 
-	CUDA_SAFE_CALL(cudaMalloc(&d_long_keys[thr_id], throughput * VERUS_KEY_SIZE));
+	CUDA_SAFE_CALL(cudaMalloc(&d_long_keys[thr_id], TOTAL_MAX * VERUS_KEY_SIZE));
 	cudaStreamCreate(&streams[thr_id][0]);
 	cudaStreamCreate(&streams[thr_id][1]);
 };
@@ -997,19 +997,19 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 
 	for (int i = 0; i < 512; i++ ) {
 
-		d_key_input[(VERUS_KEY_SIZE128 * thread) + ((threadIdx.x+i) & 511)] = sharedMemory3[((threadIdx.x + i) & 511)];
+		d_key_input[(VERUS_KEY_SIZE128 * (thread & (TOTAL_MAX - 1)) ) + ((threadIdx.x+i) & 511)] = sharedMemory3[((threadIdx.x + i) & 511)];
 	}
 	int b = threadIdx.x & 31;
 	for (int i = 0; i < 40; i++) {
 
-		d_key_input[(VERUS_KEY_SIZE128 * thread) + 512 + ((i + b) % 40)] = sharedMemory3[512+((i + b) % 40)];
+		d_key_input[((VERUS_KEY_SIZE128 * (thread & (TOTAL_MAX - 1)))) + 512 + ((i + b) % 40)] = sharedMemory3[512+((i + b) % 40)];
 	}
 	s[2].x = nounce;
 	s[0] = s[0] ^ s[2];
 	s[1] = s[1] ^ s[3];
 
 
-	mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[VERUS_KEY_SIZE128 * thread], s, sharedMemory1[0]);
+	mid = __verusclmulwithoutreduction64alignedrepeatgpu(&d_key_input[(VERUS_KEY_SIZE128 * (thread & (TOTAL_MAX - 1)))], s, sharedMemory1[0]);
 	mid.x ^= 0x00010000;
 
 	uint64_t acc = precompReduction64(mid);;
@@ -1025,7 +1025,7 @@ void verus_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t 
 
 
 	//haraka512_port_keyed((unsigned char*)hash, (const unsigned char*)s, (const unsigned char*)(biddy + mask), sharedMemory1, nounce);
-	uint32_t hash = haraka512_port_keyed2222(s, (&d_key_input[VERUS_KEY_SIZE128 * thread] + acc), sharedMemory1[0]);
+	uint32_t hash = haraka512_port_keyed2222(s, (&d_key_input[(VERUS_KEY_SIZE128 * (thread & (TOTAL_MAX - 1)))] + acc), sharedMemory1[0]);
 	if (hash < ptarget[7]) {
 
 		resNonce[0] = nounce;
