@@ -158,13 +158,13 @@
 #define PACKAGE_BUGREPORT ""
 
 /* Define to the full name of this package. */
-#define PACKAGE_NAME "ccminer"
+#define PACKAGE_NAME "ccminer_CPU"
 
 /* Define to the home page for this package. */
-#define PACKAGE_URL "http://github.com/tpruvot/ccminer"
+#define PACKAGE_URL "http://github.com/monkins1010/ccminer"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "3.7_CPU "
+#define PACKAGE_VERSION "3.7"
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
