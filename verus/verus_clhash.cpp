@@ -394,7 +394,7 @@ __m128i __verusclmulwithoutreduction64alignedrepeatv2_2(__m128i *randomsource, c
 	const __m128i *pbuf;
 
 	// divide key mask by 16 from bytes to __m128i
-	keyMask >>= 4;
+	//keyMask >>= 4;
 
 	// the random buffer must have at least 32 16 byte dwords after the keymask to work with this
 	// algorithm. we take the value from the last element inside the keyMask + 2, as that will never

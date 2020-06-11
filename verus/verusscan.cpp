@@ -143,7 +143,7 @@ extern "C" void Verus2hash(unsigned char *hash, unsigned char *curBuf, uint32_t 
 	//	FillExtra((u128 *)curBuf);
 	uint64_t intermediate;
 	((uint32_t*)&curBuf[0])[8] = nonce;
-	if(version = 3)
+	if(version == 3)
 	intermediate = verusclhashv2_1(data_key,curBuf, 511, fixrand, fixrandex, g_prand, g_prandex);
 	else
 		intermediate = verusclhashv2_2(data_key, curBuf, 511, fixrand, fixrandex, g_prand, g_prandex);

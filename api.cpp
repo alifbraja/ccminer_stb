@@ -137,27 +137,11 @@ static void gpustatus(int thr_id)
 		cgpu->gpu_plimit = gpu_plimit(cgpu); // mW or %
 #endif
 		cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
-		if (cgpu->monitor.gpu_power) {
-			cgpu->gpu_power = cgpu->monitor.gpu_power;
-			khashes_per_watt = (double)cgpu->khashes / cgpu->monitor.gpu_power;
-			khashes_per_watt *= 1000; // power in mW
-			//gpulog(LOG_BLUE, thr_id, "KHW: %g", khashes_per_watt);
-		}
+
 
 		card = device_name[gpuid];
 
-		snprintf(buf, sizeof(buf), "GPU=%d;BUS=%hd;CARD=%s;TEMP=%.1f;"
-			"POWER=%u;FAN=%hu;RPM=%hu;"
-			"FREQ=%u;MEMFREQ=%u;GPUF=%u;MEMF=%u;"
-			"KHS=%.2f;KHW=%.5f;PLIM=%u;"
-			"ACC=%u;REJ=%u;HWF=%u;I=%.1f;THR=%u|",
-			gpuid, cgpu->gpu_bus, card, cgpu->gpu_temp,
-			cgpu->gpu_power, cgpu->gpu_fan, cgpu->gpu_fan_rpm,
-			cgpu->gpu_clock/1000, cgpu->gpu_memclock/1000, // base freqs in MHz
-			cgpu->monitor.gpu_clock, cgpu->monitor.gpu_memclock, // current
-			cgpu->khashes, khashes_per_watt, cgpu->gpu_plimit,
-			cgpu->accepted, (unsigned) cgpu->rejected, (unsigned) cgpu->hw_errors,
-			cgpu->intensity, cgpu->throughput);
+
 
 		// append to buffer for multi gpus
 		strcat(buffer, buf);
@@ -273,40 +257,13 @@ static void gpuhwinfos(int gpu_id)
 		return;
 
 	
-	cgpu->gpu_plimit = 200;
 
-#ifdef USE_WRAPNVML
-	cgpu->has_monitoring = true;
-	cgpu->gpu_bus = gpu_busid(cgpu);
-	cgpu->gpu_temp = gpu_temp(cgpu);
-	cgpu->gpu_fan = (uint16_t) gpu_fanpercent(cgpu);
-	cgpu->gpu_fan_rpm = (uint16_t) gpu_fanrpm(cgpu);
-	cgpu->gpu_pstate = (int16_t) gpu_pstate(cgpu);
-	cgpu->gpu_power = gpu_power(cgpu);
-	cgpu->gpu_plimit = gpu_plimit(cgpu);
-	gpu_info(cgpu);
-#ifdef WIN32
-	if (opt_debug) nvapi_pstateinfo(cgpu->gpu_id);
-#endif
-#endif
 
 	memset(pstate, 0, sizeof(pstate));
-	if (cgpu->gpu_pstate != -1)
-		snprintf(pstate, sizeof(pstate), "P%d", (int) cgpu->gpu_pstate);
 
 	card = device_name[gpu_id];
 
-	snprintf(buf, sizeof(buf), "GPU=%d;BUS=%hd;CARD=%s;SM=%hu;MEM=%u;"
-		"TEMP=%.1f;FAN=%hu;RPM=%hu;FREQ=%u;MEMFREQ=%u;GPUF=%u;MEMF=%u;"
-		"PST=%s;POWER=%u;PLIM=%u;"
-		"VID=%hx;PID=%hx;NVML=%d;NVAPI=%d;SN=%s;BIOS=%s|",
-		gpu_id, cgpu->gpu_bus, card, cgpu->gpu_arch, (uint32_t) cgpu->gpu_mem,
-		cgpu->gpu_temp, cgpu->gpu_fan, cgpu->gpu_fan_rpm,
-		cgpu->gpu_clock/1000U, cgpu->gpu_memclock/1000U, // base clocks
-		cgpu->monitor.gpu_clock, cgpu->monitor.gpu_memclock, // current
-		pstate, cgpu->gpu_power, cgpu->gpu_plimit,
-		cgpu->gpu_vid, cgpu->gpu_pid, cgpu->nvml_id, cgpu->nvapi_id,
-		cgpu->gpu_sn, cgpu->gpu_desc);
+
 
 	strcat(buffer, buf);
 }
