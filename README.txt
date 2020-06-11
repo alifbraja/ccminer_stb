@@ -288,6 +288,10 @@ so we can more efficiently implement new algorithms using the latest hardware
 features.
 
 >>> RELEASE HISTORY <<<
+  June 11th 2020  v3.7
+                 Verushash 2.2
+
+
   June 23th 2018  v2.3
                   Handle phi2 header variation for smart contracts
                   Handle monero, stellite, graft and cryptolight variants
