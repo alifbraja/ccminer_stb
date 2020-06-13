@@ -61,6 +61,7 @@ double equi_network_diff(struct work *work)
 	//KMD bits: "1d 686aaf",
 	//KMD target: "00 0000 686aaf0000000000000000000000000000000000000000000000000000",
 	uint32_t nbits = work->data[26];
+	
 	uint32_t bits = (nbits & 0xffffff);
 	int16_t shift = (swab32(nbits) & 0xff);
 	shift = (31 - shift) * 8; // 8 bits shift for 0x1e, 16 for 0x1d
@@ -71,6 +72,8 @@ double equi_network_diff(struct work *work)
 	for (int b=0; b<8; b++)
 		net_target[31-b] = ((uint8_t*)&tgt64)[b];
 	// applog_hex(net_target, 32);
+	//for (int i = 0; i < 8; i++)work->target[i] = ((uint32_t*)(&net_target))[i];
+	
 	double d = target_to_diff_equi((uint32_t*)net_target);
 	return d;
 }
@@ -94,10 +97,10 @@ bool equi_stratum_set_target(struct stratum_ctx *sctx, json_t *params)
 		return false;
 
 	hex2bin(target_bin, target_hex, 32);
-	memset(target_be, 0xff, 32);
+	memset(target_be, 0x00, 32);
 	int filled = 0;
 	for (int i=0; i<32; i++) {
-		if (filled == 3) break;
+		if (filled == 8) break;
 		target_be[31-i] = target_bin[i];
 		if (target_bin[i]) filled++;
 	}
@@ -115,7 +118,7 @@ bool equi_stratum_set_target(struct stratum_ctx *sctx, json_t *params)
 
 bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 {
-	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime;
+	const char *job_id, *version, *prevhash, *coinb1, *coinb2, *nbits, *stime, *hash_version = NULL;
 	size_t coinb1_size, coinb2_size;
 	bool clean, ret = false;
 	int ntime, i, p=0;
@@ -127,6 +130,7 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	stime = json_string_value(json_array_get(params, p++));
 	nbits = json_string_value(json_array_get(params, p++));
 	clean = json_is_true(json_array_get(params, p)); p++;
+	hash_version = json_string_value(json_array_get(params, p++));
 
 	if (!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
 	    strlen(prevhash) != 64 || strlen(version) != 8 ||
@@ -135,7 +139,7 @@ bool equi_stratum_notify(struct stratum_ctx *sctx, json_t *params)
 		applog(LOG_ERR, "Stratum notify: invalid parameters");
 		goto out;
 	}
-
+	hex2bin(&sctx->job.hash_ver, hash_version, 1);
 	/* store stratum server time diff */
 	hex2bin((uchar *)&ntime, stime, 4);
 	ntime = ntime - (int) time(0);

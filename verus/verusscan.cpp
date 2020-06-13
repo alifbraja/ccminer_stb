@@ -41,8 +41,8 @@ static const int PROTOCOL_VERSION = 170002;
 static bool init[MAX_GPUS] = { 0 };
 static u128 data_key[MAX_GPUS][VERUS_KEY_SIZE128] = { 0 }; // 552 required
 static __thread uint32_t throughput = 0;
-extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces);
-extern void verus_setBlock(uint8_t blockf[64], uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput);
+extern void verus_hash(int thr_id, uint32_t threads, uint32_t startNonce, uint32_t* resNonces, uint8_t version);
+extern void verus_setBlock(uint8_t *blockf, uint32_t *pTargetIn, uint8_t *lkey, int thr_id, uint32_t throughput);
 extern void verus_init(int thr_id, uint32_t throughput);
 
 
@@ -97,9 +97,7 @@ extern "C" void VerusHashHalf(void *result2, unsigned char *data, size_t len)
 		if (len - pos >= room)
 		{
 			memcpy(curBuf + 32 + curPos, data + pos, room);
-
 			haraka512_port(result, curBuf);
-
 			tmp = curBuf;
 			curBuf = result;
 			result = tmp;
@@ -152,7 +150,10 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint32_t nonce_buf = 0;
 	uint32_t intensity = 16;
 
-	unsigned char block_41970[] = { 0xfd, 0x40, 0x05, 0x03 };
+	uint8_t version = work->hash_ver;
+	unsigned char block_41970[4] = { 0xfd, 0x40, 0x05 };
+	block_41970[3] = version;
+	
 	uint8_t _ALIGN(64) full_data[140 + 3 + 1344] = { 0 };
 	uint8_t* sol_data = &full_data[140];
 
@@ -170,7 +171,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 		if (opt_cudaschedule == -1 && gpu_threads == 1) {
 			cudaDeviceReset();
 			// reduce cpu usage
-			cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
+			//cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
 			CUDA_LOG_ERROR();
 		}
 		//cuda_get_arch(thr_id);
@@ -184,10 +185,6 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 
 
 	VerusHashHalf(blockhash_half, (unsigned char*)full_data, 1487);
-
-
-
-
 	GenNewCLKey((unsigned char*)blockhash_half, data_key[thr_id]);  //data_key a global static 2D array data_key[16][8832];
 																	//Verus2hash((unsigned char *)vhash, (unsigned char *)blockhash_half, 0, thr_id);
 
@@ -197,10 +194,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	do {
 
 		*hashes_done = nonce_buf + throughput;
-
-		uint32_t selector = ((uint32_t*)&data_key[thr_id][513])[0] & 0x1cu;
-		verus_hash(thr_id, throughput, nonce_buf, work->nonces);
-		//gpulog(LOG_INFO, thr_id, "Start of the do loop");
+		verus_hash(thr_id, throughput, nonce_buf, work->nonces, version);
 
 		if (work->nonces[0] != UINT32_MAX)
 		{

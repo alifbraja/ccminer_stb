@@ -1,4 +1,4 @@
-AC_INIT([ccminer], [2.3], [], [ccminer], [http://github.com/tpruvot/ccminer])
+AC_INIT([ccminerGPU], [3.8], [], [ccminer], [http://github.com/monkins1010/ccminer])
 
 AC_PREREQ([2.59c])
 AC_CANONICAL_SYSTEM
