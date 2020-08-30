@@ -214,6 +214,13 @@ static inline void le32enc(void *pp, uint32_t x)
 }
 #endif
 
+#if defined(__FreeBSD__)
+#define HAVE_DECL_BE16DEC 1
+#define HAVE_DECL_LE16DEC 1
+#define HAVE_DECL_BE16ENC 1
+#define HAVE_DECL_LE16ENC 1
+#endif
+
 #if !HAVE_DECL_BE16DEC
 static inline uint16_t be16dec(const void *pp)
 {

@@ -34,3 +34,9 @@ Compile on Linux
 ----------------
 
 Please see [INSTALL](https://github.com/tpruvot/ccminer/blob/linux/INSTALL) file or [project Wiki](https://github.com/tpruvot/ccminer/wiki/Compatibility)
+
+
+Compile on FreeBSD
+------------------
+
+Make sure you have `gmake` installed from the ports tree. Use `build-freebsd.sh`
