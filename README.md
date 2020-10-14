@@ -34,3 +34,8 @@ Compile on Linux
 ----------------
 
 Please see [INSTALL](https://github.com/tpruvot/ccminer/blob/linux/INSTALL) file or [project Wiki](https://github.com/tpruvot/ccminer/wiki/Compatibility)
+
+Compile on Android
+------------------
+
+Please see [README-ANDROID](./README-ANDROID.md) file

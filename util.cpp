@@ -36,7 +36,9 @@
 #include "miner.h"
 #include "elist.h"
 
-
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 extern pthread_mutex_t stratum_sock_lock;
 extern pthread_mutex_t stratum_work_lock;
@@ -1671,7 +1673,6 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 {
 	char algo[64] = { 0 };
 	char vid[32], arch[8], driver[32];
-	char *card;
 	char os[8];
 	uint32_t watts = 0, plimit = 0;
 	int dev_id = device_map[thr_id];
@@ -1690,7 +1691,6 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 
 	get_currentalgo(algo, sizeof(algo));
 
-	card = "CPU";
 	cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
 
 	sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
@@ -1701,7 +1701,7 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	val = json_object();
 	json_object_set_new(val, "algo", json_string(algo));
 	json_object_set_new(val, "type", json_string("gpu"));
-	json_object_set_new(val, "device", json_string(card));
+	json_object_set_new(val, "device", json_string("CPU"));
 	json_object_set_new(val, "vendorid", json_string(vid));
 	json_object_set_new(val, "arch", json_string(arch));
 	json_object_set_new(val, "freq", json_integer(cgpu->gpu_clock/1000));
