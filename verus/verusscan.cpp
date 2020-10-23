@@ -184,7 +184,7 @@ extern "C" int scanhash_verus(int thr_id, struct work *work, uint32_t max_nonce,
 	uint32_t fixrand[32];
 	uint32_t fixrandex[32];
 
-	unsigned char block_41970[] = { 0xfd, 0x40, 0x05, 0x01 };
+	unsigned char block_41970[] = { 0xfd, 0x40, 0x05, 0x05 };
 	uint8_t _ALIGN(64) full_data[140 + 3 + 1344] = { 0 };
 	uint8_t* sol_data = &full_data[140];
 
