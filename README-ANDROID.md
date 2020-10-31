@@ -1,13 +1,18 @@
 **How to compile on Android**
 
-*NOTE: Tested on rooted Android 6*
-
 There are two methods (or more?), to compile `ccminer` on Android:
 
 1. By installing a Linux distribution with help of `Termux` + `proot-distro`: https://medium.com/veruscoin/mining-veruscoin-on-smartphone-208dbb06905f
 2. By compiling without the any Linux distribution, purely on the system. 
 
 This document explains the second way.
+
+*NOTE: Tested on:*
++ rooted Letv Le 1s, Android 6, Mediatek MT6795T
++ unrooted Coolpad Cool1, Android 6, Snapdragon 652
++ unrooted Huawei Honor 9 Lite, Android 9, HiSilicon Kirin 659
+
+**Currently x86_64 Android platform is not supported. Work in progress.**
 
 # Step 1 - Install the Termux
 
@@ -39,7 +44,7 @@ Then we need to install `gcc-6` (or `gcc-7`, `gcc-8`, `gcc-9`, `gcc-10`) package
 
 Clone the `ccminer` git repo (`ARM` branch):
 
-`git clone --single-branch -b ARM https://github.com/shmutalov/ccminer.git`
+`git clone --single-branch -b ARM https://github.com/monkins1010/ccminer.git`
 
 Then change the current directory:
 
