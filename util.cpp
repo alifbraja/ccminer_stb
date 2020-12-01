@@ -1690,7 +1690,7 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 
 	get_currentalgo(algo, sizeof(algo));
 
-	card = "CPU";
+//	card = "CPU";
 	cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
 
 	//sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
@@ -1701,7 +1701,7 @@ static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
 	val = json_object();
 	json_object_set_new(val, "algo", json_string(algo));
 	json_object_set_new(val, "type", json_string("gpu"));
-	json_object_set_new(val, "device", json_string(card));
+	json_object_set_new(val, "device", json_string("CPU"));
 	json_object_set_new(val, "vendorid", json_string(vid));
 	json_object_set_new(val, "arch", json_string(arch));
 	//json_object_set_new(val, "freq", json_integer(cgpu->gpu_clock/1000));
