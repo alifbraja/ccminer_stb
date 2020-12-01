@@ -3478,7 +3478,7 @@ int main(int argc, char *argv[])
 //	printf("                            ....                           ....                  .....\n");
 //	printf("*********************************************************************************************************\n");
 
-	printf("\n      *** ccminer CPU" PACKAGE_VERSION " for Verushash v2.1 - 2.2  by Monkins1010 based on ccminer***\n\n");
+	printf("\n      *** ccminer CPU" PACKAGE_VERSION ".1 for Verushash v2.1 - 2.2  by Monkins1010 based on ccminer***\n\n");
 
 		//printf("    Built with VC++ %d" , msver());
 		printf("Originally based on Christian Buchner and Christian H. project\n");
